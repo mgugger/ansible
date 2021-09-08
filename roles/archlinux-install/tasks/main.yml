@@ -1,0 +1,185 @@
+---
+- name: Check device name {{ install_device_name }} exists
+  stat: "path={{ install_device_name }}"
+  register: device
+  failed_when: not device.stat.exists
+
+- name: Check if partitions are mounted
+  block:
+    - command: mountpoint -q /mnt
+      register: root_mountpoint
+      ignore_errors: yes
+    - command: mountpoint -q /mnt/boot
+      register: boot_mountpoint
+      ignore_errors: yes
+    - set_fact:
+        root_mounted: "{{ root_mountpoint.rc == 0 }}"
+        boot_mounted: "{{ boot_mountpoint.rc == 0 }}"
+
+- name: Label {{ install_device_name }} as gpt
+  community.general.parted:
+      device: "{{ install_device_name }}"
+      label: gpt
+
+- name: Create boot partition with a size of 512MB
+  community.general.parted:
+    device: "{{ install_device_name }}"
+    number: 1
+    state: present
+    flags: esp
+    part_end: 512MB
+    fs_type: fat32
+
+- name: Create btrfs partition
+  community.general.parted:
+    device: "{{ install_device_name }}"
+    number: 2
+    state: present
+    part_start: 512MB
+    part_end: 100%
+    fs_type: btrfs
+
+- name: Format efi boot partition
+  when: not boot_mounted
+  filesystem: 
+    dev: "{{ install_device_name }}1"
+    fstype: vfat
+    force: yes
+
+- name: Format root partition with btrfs
+  when: not root_mounted
+  filesystem: 
+    dev: "{{ install_device_name }}2"
+    fstype: btrfs
+    force: yes
+
+- name: Mount Root partition
+  when: not root_mounted
+  mount:
+    path: "/mnt"
+    src: "{{ install_device_name }}2"
+    state: mounted
+    fstype: btrfs
+    opts: compress=zstd:3,noatime
+
+- name: Create a directory if it does not exist
+  ansible.builtin.file:
+    path: /mnt/boot
+    state: directory
+
+- name: Mount boot partition
+  when: not boot_mounted
+  mount:
+    path: "/mnt/boot"
+    src: "{{ install_device_name }}1"
+    state: mounted
+    fstype: vfat
+
+- name: Run pacstrap base system
+  command: pacstrap /mnt base linux linux-firmware
+
+- name: Remove fstab
+  ansible.builtin.file:
+    path: /mnt/etc/fstab
+    state: absent
+
+- name: Run genfstab
+  command: genfstab -U /mnt >> /mnt/etc/fstab
+
+- name: Set hostname to archlinux
+  copy: 
+    dest: /mnt/etc/hostname
+    content: archlinux
+
+- name: use locale en_US.UTF-8
+  ansible.builtin.lineinfile:
+    path: /etc/locale.gen
+    regexp: '^en_US.UTF-8 UTF-8'
+    line: en_US.UTF-8 UTF-8
+
+- name: Set language to en_US.UTF-8 UTF-8"
+  copy: 
+    dest: /mnt/etc/locale.conf
+    content: LANG=en_US.UTF-8
+
+- name: Set keymap to de_CH-latin1
+  copy: 
+    dest: /mnt/etc/vconsole.conf
+    content: KEYMAP=de_CH-latin1
+
+- name: set hosts
+  copy:
+    dest: /mnt/etc/hosts
+    content: |
+      127.0.0.1	localhost
+      ::1		localhost
+      127.0.1.1	archlinux.localdomain	archlinux
+
+- name: Load hyper-v modules in the kernel
+  ansible.builtin.lineinfile:
+    path: /mnt/etc/mkinitcpio.conf
+    regexp: MODULES=(.*)
+    line: MODULES=(hv_storvsc hv_vmbus)
+
+- name: Configure System and create efistub bootloader
+  ignore_errors: true
+  command:
+    argv:
+      - /usr/bin/arch-chroot
+      - /mnt
+      - /bin/bash
+      - -c
+      - |
+        ln -sf /usr/share/zoneinfo/CET /etc/localtime
+        hwclock --systohc
+        locale-gen
+        echo -e "root\nroot" | passwd
+        pacman -Sy --noconfirm openssh grub dhcpcd nano python
+        systemctl enable sshd
+        systemctl enable dhcpcd       
+        mkinitcpio -P
+        grub-install --target=x86_64-efi --efi-directory=/boot --botloader-id=GRUB
+        grub-mkconfig -o /boot/grub/grub.cfg
+
+- name: Add admin user
+  command:
+    argv:
+      - /usr/bin/arch-chroot
+      - /mnt
+      - /bin/bash
+      - -c
+      - |
+        useradd -m admin
+        echo -e "admin\nadmin" | passwd admin
+        gpasswd -a admin wheel
+        
+- name: allow admin user passwordless sudo
+  ansible.builtin.lineinfile:
+    path: /mnt/etc/sudoers
+    regexp: '^admin ALL=(ALL:ALL) NOPASSWD:ALL'
+    line: admin ALL=(ALL:ALL) NOPASSWD:ALL
+
+- name: Install yay
+  command:
+    argv:
+      - /usr/bin/arch-chroot
+      - /mnt
+      - /bin/bash
+      - -c
+      - |
+        pacman -S --needed git base-devel --noconfirm
+        cd /home/admin
+        sudo -u admin git clone https://aur.archlinux.org/yay-bin.git
+        cd /home/admin/yay-bin
+        sudo -u admin makepkg -si --noconfirm
+
+- name: Install walinuxagent
+  command:
+    argv:
+      - /usr/bin/arch-chroot
+      - /mnt
+      - /bin/bash
+      - -c
+      - |
+        sudo -u admin yay -S walinuxagent --noconfirm
+        systemctl enable waagent

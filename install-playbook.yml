@@ -1,0 +1,16 @@
+---
+- name: Install Archlinux
+  hosts: all
+  roles:
+  - archlinux-install
+  vars_prompt:
+    - name: username
+      prompt: "Enter username for ssh"
+      private: no
+    - name: password
+      prompt: "Enter password for ssh"
+  vars:
+    ansible_connection: ssh
+    ansible_user: "{{ username }}"
+    ansible_ssh_pass: "{{ password }}"
+    install_device_name: /dev/sda

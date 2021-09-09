@@ -121,7 +121,7 @@
     regexp: MODULES=(.*)
     line: MODULES=(hv_storvsc hv_vmbus)
 
-- name: Configure System and create efistub bootloader
+- name: Configure System and create grub bootloader
   ignore_errors: true
   command:
     argv:
@@ -134,11 +134,11 @@
         hwclock --systohc
         locale-gen
         echo -e "root\nroot" | passwd
-        pacman -Sy --noconfirm openssh grub dhcpcd nano python
+        pacman -Sy --noconfirm openssh efibootmgr grub dhcpcd nano python sudo
         systemctl enable sshd
         systemctl enable dhcpcd       
-        mkinitcpio -P
-        grub-install --target=x86_64-efi --efi-directory=/boot --botloader-id=GRUB
+        mkinitcpio -P || true
+        grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
         grub-mkconfig -o /boot/grub/grub.cfg
 
 - name: Add admin user

@@ -1,0 +1,11 @@
+---
+- name: Install K3S from aur
+  command: sudo -u admin yay -S k3s-1.21-bin --noconfirm
+
+- name: Start K3S and enable systemd
+  become: yes
+  ansible.builtin.systemd:
+    state: started
+    daemon_reload: yes
+    name: k3s
+    enabled: yes

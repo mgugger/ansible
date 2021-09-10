@@ -1,0 +1,19 @@
+---
+- name: Install yay
+  command: 
+    cmd: sudo pacman -S --needed git base-devel --noconfirm
+
+- name: Recursively remove directory
+  ansible.builtin.file:
+    path: yay-bin
+    state: absent
+
+- name: clone yay
+  command: 
+    cmd: git clone https://aur.archlinux.org/yay-bin.git
+
+- name: makepkg
+  command: 
+    cmd: sudo -u admin makepkg -si --noconfirm
+    chdir: yay-bin
+

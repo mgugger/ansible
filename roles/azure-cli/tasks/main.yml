@@ -1,0 +1,3 @@
+---
+- name: install azure cli
+  command: sudo -u admin yay -S azure-cli --noconfirm

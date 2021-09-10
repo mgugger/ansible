@@ -13,4 +13,5 @@
     ansible_connection: ssh
     ansible_user: "{{ username }}"
     ansible_ssh_pass: "{{ password }}"
-    install_device_name: /dev/sda
+  vars_files:
+    - ./vars/main.yml

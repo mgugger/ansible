@@ -1,0 +1,9 @@
+install_device_name: /dev/sda
+azure_arc_linux:
+  servicePrincipalClientId: cc765003-cf3b-47d7-86d0-e6791ad62bc7
+  servicePrincipalSecret: V_tC.SCe06Hd84_9-_KC1OBq5_~Vlqo3Jq
+  resource_group: tf-arc-linux
+  tenant_id: a5f516d3-a4e5-414a-8463-9e78921e4769
+  location: northeurope
+  subscription_id: 9cd44e3c-5f40-4eea-95f7-bb551bac9cdd
+  correlation_id: d056599a-7a49-4b2f-a329-19fd7f7c1014

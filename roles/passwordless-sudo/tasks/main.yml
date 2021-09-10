@@ -1,0 +1,7 @@
+---
+- name: allow user passwordless sudo
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers
+    regexp: "^{{ lookup('env', 'USER') }} ALL=(ALL:ALL) NOPASSWD:ALL"
+    line: "{{ lookup('env', 'USER') }} ALL=(ALL:ALL) NOPASSWD:ALL"

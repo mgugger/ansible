@@ -159,27 +159,16 @@
     regexp: '^admin ALL=(ALL:ALL) NOPASSWD:ALL'
     line: admin ALL=(ALL:ALL) NOPASSWD:ALL
 
-# - name: Install yay
-#   command:
-#     argv:
-#       - /usr/bin/arch-chroot
-#       - /mnt
-#       - /bin/bash
-#       - -c
-#       - |
-#         pacman -S --needed git base-devel --noconfirm
-#         cd /home/admin
-#         sudo -u admin git clone https://aur.archlinux.org/yay-bin.git
-#         cd /home/admin/yay-bin
-#         sudo -u admin makepkg -si --noconfirm
-
-# - name: Install walinuxagent
-#   command:
-#     argv:
-#       - /usr/bin/arch-chroot
-#       - /mnt
-#       - /bin/bash
-#       - -c
-#       - |
-#         sudo -u admin yay -S walinuxagent --noconfirm
-#         systemctl enable waagent
+- name: Install yay
+  command:
+    argv:
+      - /usr/bin/arch-chroot
+      - /mnt
+      - /bin/bash
+      - -c
+      - |
+        pacman -S --needed git base-devel --noconfirm
+        cd /home/admin
+        sudo -u admin git clone https://aur.archlinux.org/yay-bin.git
+        cd /home/admin/yay-bin
+        sudo -u admin makepkg -si --noconfirm

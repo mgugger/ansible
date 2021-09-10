@@ -2,6 +2,8 @@
 - name: Setup Archlinux
   hosts: all
   roles:
+  - ansible-modules-bitwarden
+  - passwordless-sudo
   - azure-arc-server
   vars_prompt:
     - name: username
@@ -14,4 +16,4 @@
     ansible_user: "{{ username }}"
     ansible_ssh_pass: "{{ password }}"
   vars_files:
-    - ./vars/main.yml
+    - vars/azure-arc-server.yml

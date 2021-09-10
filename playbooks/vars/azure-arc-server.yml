@@ -1,0 +1,8 @@
+azure_arc_linux:
+  servicePrincipalClientId: "{{ lookup('bitwarden', 'azure-arc', field='servicePrincipalClientId', custom_field=true) }}"
+  servicePrincipalSecret: "{{ lookup('bitwarden', 'azure-arc', field='servicePrincipalSecret', custom_field=true) }}"
+  resource_group: tf-arc-linux
+  tenant_id: "{{ lookup('bitwarden', 'azure-arc', field='tenant_id', custom_field=true) }}"
+  location: northeurope
+  subscription_id: "{{ lookup('bitwarden', 'azure-arc', field='subscription_id', custom_field=true) }}"
+  correlation_id: d056599a-7a49-4b2f-a329-19fd7f7c1014

@@ -4,13 +4,6 @@
     url: https://aka.ms/azcmagent
     dest: ./install_linux_azcmagent.sh
 
-- name: allow user passwordless sudo
-  become: true
-  ansible.builtin.lineinfile:
-    path: /etc/sudoers
-    regexp: "^{{ lookup('env', 'USER') }} ALL=(ALL:ALL) NOPASSWD:ALL"
-    line: "{{ lookup('env', 'USER') }} ALL=(ALL:ALL) NOPASSWD:ALL"
-
 - name: Run onboarding script
   command: bash install_linux_azcmagent.sh
 

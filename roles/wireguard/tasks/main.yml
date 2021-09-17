@@ -1,0 +1,78 @@
+---
+- name: Update repositories cache and install "wireguard" package
+  become: yes
+  apt:
+    name: wireguard
+    update_cache: yes
+
+- name: Store private key
+  become: yes
+  copy:
+    dest: "/etc/wireguard/privatekey"
+    content: "{{ wireguard_server_privatekey }}"
+
+- name: Store public key
+  become: yes
+  copy:
+    dest: "/etc/wireguard/publickey"
+    content: "{{ wireguard_server_publickey }}"
+
+- name: Creating wireguard config
+  become: yes
+  copy:
+    dest: "/etc/wireguard/wg0.conf"
+    content: |
+      [Interface]
+      Address = {{ wireguard_server_cidr }}
+      PrivateKey = {{ wireguard_server_privatekey }}
+      ListenPort = 51820
+      PostUp = ufw route allow in on wg0 out on {{ ansible_default_ipv4.interface }}
+      PostUp = iptables -t nat -I POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
+      PostUp = ip6tables -t nat -I POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
+      PreDown = ufw route delete allow in on wg0 out on {{ ansible_default_ipv4.interface }}
+      PreDown = iptables -t nat -D POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
+      PreDown = ip6tables -t nat -D POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
+
+      [Peer]
+      PublicKey = {{ wireguard_client_publickey }}
+      AllowedIPs = {{ wireguard_client_cidr }}
+
+- name: allow ip4 ip forward
+  become: yes
+  ansible.builtin.lineinfile:
+    path: /etc/sysctl.conf
+    regexp: '^net.ipv4.ip_forward='
+    line: net.ipv4.ip_forward=1
+
+- name: Make sure wireguard is running
+  become: yes
+  ansible.builtin.systemd:
+    state: restarted
+    name: wg-quick@wg0
+    enabled: yes
+
+- name: limit ssh on ufw
+  become: yes
+  ufw:
+    rule: limit
+    port: ssh
+    proto: tcp
+
+- name: ufw allow openssh
+  become: yes
+  ufw:
+    rule: allow
+    name: OpenSSH
+
+- name: ufw allow wireguard
+  become: yes
+  ufw:
+    rule: allow
+    port: 51820
+    proto: udp
+
+- name: enable ufw
+  become: yes
+  ufw:
+    state: enabled
+    policy: deny

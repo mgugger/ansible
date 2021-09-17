@@ -1,0 +1,2 @@
+k3s_token: "{{ lookup('bitwarden', 'k3s', field='server_token', custom_field=true) }}"
+k3s_server_url: https://vm-k3s-server1:6443

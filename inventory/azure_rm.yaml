@@ -1,0 +1,12 @@
+plugin: azure_rm
+include_vm_resource_groups:
+  - tf-connectivity
+  - tf-k3s
+auth_source: auto
+conditional_groups:
+  linux: "'CentOS' in image.offer"
+  windows: "'WindowsServer' in image.offer"
+default_host_filters:
+  - "provisioning_state != \"succeeded\""
+keyed_groups:
+ - key: tags.applicationRole

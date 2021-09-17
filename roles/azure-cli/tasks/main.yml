@@ -1,3 +1,10 @@
 ---
 - name: install azure cli
-  command: sudo -u admin yay -S azure-cli --noconfirm
+  shell: curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+  args:
+    warn: no
+
+- name: add connectedk8s extension
+  shell: az extension add --upgrade -n connectedk8s
+  args:
+    warn: no

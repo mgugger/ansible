@@ -1,0 +1,14 @@
+- name: Start Stop Azure VMs
+  hosts: all
+  connection: local
+  vars_prompt:
+  - name: vm_started
+    prompt: "Start VM (yes or no)"
+    private: no
+  tasks:
+  - name: Start / Stop virtual machine
+    delegate_to: localhost
+    azure_rm_virtualmachine:
+      resource_group: "{{ resource_group }}"
+      name: "{{ name }}"
+      allocated: "{{ vm_started }}"

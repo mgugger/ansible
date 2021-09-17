@@ -1,11 +1,44 @@
 ---
-- name: Install K3S from aur
-  command: sudo -u admin yay -S k3s-1.21-bin --noconfirm
+# - name: Install k3s server with apt
+#   when: "'server' in inventory_hostname"
+#   shell: curl -sfL https://get.k3s.io | K3S_TOKEN="{{ k3s_token }}" INSTALL_K3S_EXEC="server" sh -
+#   args:
+#     warn: no
 
-- name: Start K3S and enable systemd
+# - name: Install k3s worker with apt
+#   when: "'worker' in inventory_hostname"
+#   shell: curl -sfL https://get.k3s.io | K3S_TOKEN="{{ k3s_token }}" K3S_URL="{{ k3s_server_url }}" sh -
+#   args:
+#     warn: no
+
+# - name: Start K3S and enable systemd
+#   become: yes
+#   when: "'server' in inventory_hostname"
+#   ansible.builtin.systemd:
+#     state: started
+#     daemon_reload: yes
+#     name: k3s
+#     enabled: yes
+
+# - name: Start K3S and enable systemd
+#   become: yes
+#   when: "'worker' in inventory_hostname"
+#   ansible.builtin.systemd:
+#     state: started
+#     daemon_reload: yes
+#     name: k3s-agent
+#     enabled: yes
+
+- name: Creates .kube
+  file:
+    path: /home/{{ lookup('env', 'USER') }}/.kube
+    state: directory
+
+- name: Copy kubectl config file to local user
   become: yes
-  ansible.builtin.systemd:
-    state: started
-    daemon_reload: yes
-    name: k3s
-    enabled: yes
+  ansible.builtin.copy:
+    mode: "0600"
+    owner: "{{ lookup('env', 'USER') }}"
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: /home/{{ lookup('env', 'USER') }}/.kube/config
+    remote_src: yes

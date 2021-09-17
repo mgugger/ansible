@@ -1,0 +1,42 @@
+---
+- name: Set resource disk format
+  become: yes
+  lineinfile:
+    path: /etc/waagent.conf
+    regexp: '^ResourceDisk.Format='
+    line: ResourceDisk.Format=y
+
+- name: Set resource disk filesystem
+  become: yes
+  lineinfile:
+    path: /etc/waagent.conf
+    regexp: '^ResourceDisk.Filesystem='
+    line: ResourceDisk.Filesystem=ext4
+
+- name: Set resource disk mnt
+  become: yes
+  lineinfile:
+    path: /etc/waagent.conf
+    regexp: '^ResourceDisk.MountPoint='
+    line: ResourceDisk.MountPoint=/mnt/resource 
+
+- name: Set resource disk enable swap
+  become: yes
+  lineinfile:
+    path: /etc/waagent.conf
+    regexp: '^ResourceDisk.EnableSwap='
+    line: ResourceDisk.EnableSwap=y
+
+- name: Set resource disk swap size
+  become: yes
+  lineinfile:
+    path: /etc/waagent.conf
+    regexp: '^ResourceDisk.SwapSizeMB='
+    line: ResourceDisk.SwapSizeMB=2048
+
+- name: Make sure walinuxagent is restarted
+  become: yes
+  systemd:
+    state: restarted
+    enabled: yes
+    name: walinuxagent

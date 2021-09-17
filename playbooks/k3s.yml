@@ -1,0 +1,7 @@
+- name: configure k3s server
+  hosts: _k3s
+  roles:
+  - ansible-modules-bitwarden
+  - swap
+  - k3s
+  - azure-cli

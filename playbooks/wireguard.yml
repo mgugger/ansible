@@ -1,0 +1,5 @@
+- name: configure wireguard server
+  hosts: _wireguard
+  roles:
+  - ansible-modules-bitwarden
+  - wireguard

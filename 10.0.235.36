@@ -1,7 +1,0 @@
-[defaults]
-roles_path = roles:~/.ansible/roles
-inventory = inventory
-
-[ssh_connection]
-pipelining = True
-ssh_args = -C -o ControlMaster=auto -o ControlPersist=60s

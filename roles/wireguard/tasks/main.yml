@@ -1,9 +1,17 @@
 ---
 - name: Update repositories cache and install "wireguard" package
+  when: ansible_facts['os_family'] == "Debian"
   become: yes
   apt:
     name: wireguard
     update_cache: yes
+
+- name: install wireguard
+  when: ansible_facts['os_family'] == "Archlinux"
+  become: yes
+  community.general.pacman:
+    name: wireguard-tools
+    state: present
 
 - name: Store private key
   become: yes
@@ -37,12 +45,14 @@
       PublicKey = {{ wireguard_client_publickey }}
       AllowedIPs = {{ wireguard_client_cidr }}
 
-- name: allow ip4 ip forward
+- name: allow ip forward
   become: yes
-  ansible.builtin.lineinfile:
-    path: /etc/sysctl.conf
-    regexp: '^net.ipv4.ip_forward='
-    line: net.ipv4.ip_forward=1
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    sysctl_set: yes
+    state: present
+    reload: yes
 
 - name: Make sure wireguard is running
   become: yes
@@ -57,12 +67,6 @@
     rule: limit
     port: ssh
     proto: tcp
-
-- name: ufw allow openssh
-  become: yes
-  ufw:
-    rule: allow
-    name: OpenSSH
 
 - name: ufw allow wireguard
   become: yes

@@ -4,8 +4,8 @@ include_vm_resource_groups:
   - tf-k3s
 auth_source: auto
 conditional_groups:
-  linux: "'CentOS' in image.offer"
-  windows: "'WindowsServer' in image.offer"
+  linux: "image.offer is defined and 'CentOS' in image.offer"
+  windows: "image.offer is defined and 'WindowsServer' in image.offer"
 default_host_filters:
   - "provisioning_state != \"succeeded\""
 keyed_groups:

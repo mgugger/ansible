@@ -1,7 +1,4 @@
-wireguard_server_cidr: 192.168.8.1/32
-wireguard_client_cidr: 192.168.8.2/32
-
+wireguard_server_cidr: 192.168.8.0/32
+wireguard_vnet_cidr: 10.0.0.0/8, 192.168.0.0/16
+wireguard_server_endpoint: mdghome.switzerlandnorth.cloudapp.azure.com:51820
 wireguard_server_publickey: "{{ lookup('bitwarden', 'wireguard', field='server_publickey', custom_field=true) }}"
-wireguard_server_privatekey: "{{ lookup('bitwarden', 'wireguard', field='server_privatekey', custom_field=true) }}"
-wireguard_client_publickey: "{{ lookup('bitwarden', 'wireguard', field='client_publickey', custom_field=true) }}"
-wireguard_client_privatekey: "{{ lookup('bitwarden', 'wireguard', field='client_privatekey', custom_field=true) }}"

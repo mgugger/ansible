@@ -13,17 +13,40 @@
     name: wireguard-tools
     state: present
 
-- name: Store private key
+- name: install ufw
+  when: ansible_facts['os_family'] == "Archlinux"
   become: yes
-  copy:
-    dest: "/etc/wireguard/privatekey"
-    content: "{{ wireguard_server_privatekey }}"
+  community.general.pacman:
+    name: ufw
+    state: present
 
-- name: Store public key
+- name: Check if private key exists
   become: yes
-  copy:
-    dest: "/etc/wireguard/publickey"
-    content: "{{ wireguard_server_publickey }}"
+  stat:
+    path: "/etc/wireguard/privatekey"
+  register: privatekey_result
+
+- name: Generate public key
+  when: not privatekey_result.stat.exists
+  become: yes
+  shell: wg genkey > /etc/wireguard/privatekey
+
+- name: Check if public key exists
+  become: yes
+  stat:
+    path: "/etc/wireguard/publickey"
+  register: publickey_result
+
+- name: Generate public key
+  when: not publickey_result.stat.exists
+  become: yes
+  shell: wg pubkey < /etc/wireguard/privatekey > /etc/wireguard/publickey
+
+- name: Get the private key
+  become: yes
+  ansible.builtin.slurp:
+    src: /etc/wireguard/privatekey
+  register: wireguard_server_privatekey
 
 - name: Creating wireguard config
   become: yes
@@ -31,8 +54,8 @@
     dest: "/etc/wireguard/wg0.conf"
     content: |
       [Interface]
-      Address = {{ wireguard_server_cidr }}
-      PrivateKey = {{ wireguard_server_privatekey }}
+      Address = {{ hostvars[inventory_hostname].tags.wireguard_ip }}
+      PrivateKey = {{ wireguard_server_privatekey['content'] | b64decode }}
       ListenPort = 51820
       PostUp = ufw route allow in on wg0 out on {{ ansible_default_ipv4.interface }}
       PostUp = iptables -t nat -I POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
@@ -41,9 +64,43 @@
       PreDown = iptables -t nat -D POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
       PreDown = ip6tables -t nat -D POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
 
+- name: add wireguard server as peer
+  when: not 'wireguard' in inventory_hostname
+  become: yes
+  blockinfile:
+    dest: "/etc/wireguard/wg0.conf"
+    insertafter: BOF
+    state: present
+    marker: "# {mark} ANSIBLE MANAGED WG PEER"
+    block: |
       [Peer]
-      PublicKey = {{ wireguard_client_publickey }}
-      AllowedIPs = {{ wireguard_client_cidr }}
+      PublicKey = {{ wireguard_server_publickey }}
+      Endpoint = {{ wireguard_server_endpoint }}
+      AllowedIPs = {{ wireguard_vnet_cidr }}, {{ wireguard_server_cidr }}
+
+      PersistentKeepalive = 25
+
+- name: Get the public key from peers
+  become: yes
+  ansible.builtin.slurp:
+    src: /etc/wireguard/publickey
+  register: publickeys
+  loop: "{{ groups.all|difference([inventory_hostname]) }}"
+  delegate_to: "{{ item }}"
+
+- name: add wireguard peers to server
+  when: '"wireguard" in inventory_hostname'
+  become: yes
+  blockinfile:
+    dest: "/etc/wireguard/wg0.conf"
+    insertafter: BOF
+    state: present
+    marker: "# {{ item['item'] }} ANSIBLE MANAGED WG PEER"
+    block: |
+      [Peer]
+      AllowedIPs = {{ hostvars[item['item']].tags.wireguard_ip }}, {{ hostvars[item['item']].ansible_host }}
+      PublicKey = {{ item['content'] | b64decode }}
+  loop: "{{ publickeys['results'] }}"
 
 - name: allow ip forward
   become: yes
@@ -80,3 +137,10 @@
   ufw:
     state: enabled
     policy: deny
+
+- name: Make sure ufw is enabled
+  become: yes
+  ansible.builtin.systemd:
+    state: started
+    name: ufw
+    enabled: yes

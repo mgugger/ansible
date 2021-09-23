@@ -1,5 +1,5 @@
 - name: Start Stop Azure VMs
-  hosts: all
+  hosts: azure
   connection: local
   vars_prompt:
   - name: vm_started

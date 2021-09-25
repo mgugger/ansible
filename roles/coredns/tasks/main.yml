@@ -25,7 +25,7 @@
     state: present
     marker: "# {{ item }} ANSIBLE MANAGED HOST"
     block: |
-      {{ hostvars[item].tags.wireguard_ip }} {{ hostvars[item].inventory_hostname }}
+      {{ hostvars[item].tags.wireguard_ip.split("/")[0] }} {{ hostvars[item].inventory_hostname }}
   loop: "{{ groups.all }}"
 
 - name: Copy configuration file
@@ -37,17 +37,11 @@
     force: yes
     dest: /etc/coredns/Corefile
     content: |  
-      internal. {
+      . {
         hosts /etc/coredns/hosts {
           fallthrough
         }
-        
-        # If no host in host file found search in azure vnet dns
-        forward . 168.63.129.16
-      
-      }
 
-      . {
         forward . tls://9.9.9.9 {
           tls_servername dns.quad9.net
           health_check 5s

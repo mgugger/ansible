@@ -1,44 +1,89 @@
----
-# - name: Install k3s server with apt
-#   when: "'server' in inventory_hostname"
-#   shell: curl -sfL https://get.k3s.io | K3S_TOKEN="{{ k3s_token }}" INSTALL_K3S_EXEC="server" sh -
+# ---
+# - name: Install k3s-bin
+#   command: yay -S k3s-bin --noconfirm
 #   args:
 #     warn: no
 
-# - name: Install k3s worker with apt
-#   when: "'worker' in inventory_hostname"
-#   shell: curl -sfL https://get.k3s.io | K3S_TOKEN="{{ k3s_token }}" K3S_URL="{{ k3s_server_url }}" sh -
-#   args:
-#     warn: no
-
-# - name: Start K3S and enable systemd
-#   become: yes
-#   when: "'server' in inventory_hostname"
-#   ansible.builtin.systemd:
-#     state: started
-#     daemon_reload: yes
-#     name: k3s
-#     enabled: yes
-
-# - name: Start K3S and enable systemd
-#   become: yes
-#   when: "'worker' in inventory_hostname"
-#   ansible.builtin.systemd:
-#     state: started
-#     daemon_reload: yes
-#     name: k3s-agent
-#     enabled: yes
-
-- name: Creates .kube
-  file:
-    path: /home/{{ lookup('env', 'USER') }}/.kube
-    state: directory
-
-- name: Copy kubectl config file to local user
+- name: Set hostname to "{{ inventory_hostname }}"
   become: yes
-  ansible.builtin.copy:
-    mode: "0600"
-    owner: "{{ lookup('env', 'USER') }}"
-    src: /etc/rancher/k3s/k3s.yaml
-    dest: /home/{{ lookup('env', 'USER') }}/.kube/config
-    remote_src: yes
+  command: hostnamectl set-hostname {{ inventory_hostname }}
+
+- name: Create a directory if it does not exist
+  become: yes
+  ansible.builtin.file:
+    path: /etc/systemd/system/k3s.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: edit k3s systemd service for server
+  become: yes
+  when: hostvars[inventory_hostname]['tags']['k3s-role'] == "server"
+  copy:
+    mode: 0644
+    owner: root
+    group: root
+    force: yes
+    dest: /etc/systemd/system/k3s.service.d/network.conf
+    content: |
+      [Service]
+      ExecStart=
+      ExecStart=/usr/bin/k3s server --token {{ k3s_token }} --advertise-address {{ hostvars[inventory_hostname]['tags']['wireguard_ip'] }} --flannel-iface=wg0 --node-taint node-role.kubernetes.io/master=true:NoSchedule
+
+- name: edit k3s systemd service for agent
+  become: yes
+  when: hostvars[inventory_hostname]['tags']['k3s-role'] == "agent"
+  copy:
+    mode: 0644
+    owner: root
+    group: root
+    force: yes
+    dest: /etc/systemd/system/k3s.service.d/network.conf
+    content: |
+      [Service]
+      ExecStart=
+      ExecStart=/usr/bin/k3s agent --server {{ k3s_server_url }} --token {{ k3s_token }} --flannel-iface=wg0
+
+- name: ufw allow k3s 6443
+  become: yes
+  ufw:
+    rule: allow
+    interface: wg0
+    direction: in
+    port: 6443
+    proto: tcp
+
+- name: ufw allow k3s 8472
+  become: yes
+  ufw:
+    rule: allow
+    interface: wg0
+    port: 8472
+    direction: in
+    proto: udp
+
+- name: ufw allow k3s 10250
+  become: yes
+  ufw:
+    rule: allow
+    interface: wg0
+    port: 10250
+    direction: in
+    proto: tcp
+
+- name: ufw allow k3s ha for embedded etc 2379-2380
+  become: yes
+  ufw:
+    rule: allow
+    interface: wg0
+    port: 2379:2380
+    direction: in
+    proto: tcp
+
+- name: Reload service k3s
+  ansible.builtin.systemd:
+    name: k3s.service
+    no_block: yes
+    daemon_reload: yes
+    state: restarted

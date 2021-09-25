@@ -3,7 +3,7 @@
   command: 
     cmd: sudo pacman -S --needed git base-devel --noconfirm
 
-- name: Recursively remove directory
+- name: Make sure yay-bin is not present
   ansible.builtin.file:
     path: yay-bin
     state: absent
@@ -16,4 +16,9 @@
   command: 
     cmd: sudo -u admin makepkg -si --noconfirm
     chdir: yay-bin
+
+- name: Make sure yay-bin is not present
+  ansible.builtin.file:
+    path: yay-bin
+    state: absent
 

@@ -3,3 +3,8 @@
   roles:
   - ansible-modules-bitwarden
   - wireguard
+  tasks:
+  - name: Install coredns on server
+    when: '"wireguard" in inventory_hostname'
+    include_role:
+      name: coredns

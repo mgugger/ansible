@@ -76,8 +76,8 @@
       [Peer]
       PublicKey = {{ wireguard_server_publickey }}
       Endpoint = {{ wireguard_server_endpoint }}
-      AllowedIPs = {{ wireguard_vnet_cidr }}, {{ wireguard_server_cidr }}
-
+      AllowedIPs = {{ wireguard_vnet_cidr }}
+      # For NAT to allow incoming traffic
       PersistentKeepalive = 25
 
 - name: Get the public key from peers
@@ -87,6 +87,27 @@
   register: publickeys
   loop: "{{ groups.all|difference([inventory_hostname]) }}"
   delegate_to: "{{ item }}"
+
+- name: get subnet from netmask
+  set_fact:
+    subnet: "{{ (ansible_default_ipv4.address + '/' + ansible_default_ipv4.netmask) | ansible.netcommon.ipaddr('network/prefix') }}"
+
+- name: add wireguard peers for mesh
+  when: not "wireguard" in inventory_hostname
+  become: yes
+  blockinfile:
+    dest: "/etc/wireguard/wg0.conf"
+    insertafter: BOF
+    state: present
+    marker: "# {{ item['item'] }} ANSIBLE MANAGED WG PEER"
+    block: |
+      {% if (hostvars[item['item']]['private_ipv4_addresses'][0] | default(hostvars[item['item']].ansible_host)) | ipaddr(subnet) | ipaddr('bool') %}
+      [Peer]
+      AllowedIPs = {{ hostvars[item['item']].tags.wireguard_ip }}
+      PublicKey = {{ item['content'] | b64decode }}
+      Endpoint = {{ hostvars[item['item']]['private_ipv4_addresses'][0] | default(hostvars[item['item']].ansible_host) }}:51820
+      {% endif %}
+  loop: "{{ publickeys['results'] }}"
 
 - name: add wireguard peers to server
   when: '"wireguard" in inventory_hostname'
@@ -101,6 +122,19 @@
       AllowedIPs = {{ hostvars[item['item']].tags.wireguard_ip }}, {{ hostvars[item['item']].ansible_host }}
       PublicKey = {{ item['content'] | b64decode }}
   loop: "{{ publickeys['results'] }}"
+
+- name: add mobile peers to server
+  when: '"wireguard" in inventory_hostname'
+  become: yes
+  blockinfile:
+    dest: "/etc/wireguard/wg0.conf"
+    insertafter: BOF
+    state: present
+    marker: "# mobile1 ANSIBLE MANAGED WG PEER"
+    block: |
+      [Peer]
+      AllowedIPs = {{ wireguard_mobile_ip }}
+      PublicKey = {{ wireguard_mobile_publickey }}
 
 - name: allow ip forward
   become: yes
@@ -137,6 +171,13 @@
   ufw:
     state: enabled
     policy: deny
+
+- name: allow forwarding from eth0 to wg on server
+  when: '"wireguard" in inventory_hostname'
+  become: yes
+  ufw:
+    rule: allow
+    route: yes
 
 - name: Make sure ufw is enabled
   become: yes

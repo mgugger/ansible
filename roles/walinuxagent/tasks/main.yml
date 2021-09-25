@@ -1,5 +1,5 @@
 ---
-# - name: Install walinuxagent
+- name: Install walinuxagent
   command:
     argv: |
       sudo -u admin yay -S walinuxagent --noconfirm

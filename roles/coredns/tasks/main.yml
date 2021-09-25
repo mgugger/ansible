@@ -1,0 +1,77 @@
+---
+- name: Install coredns
+  command: yay -S coredns-bin --noconfirm
+  args:
+    warn: no
+
+- name: set custom hosts file
+  become: yes
+  copy:
+    mode: 0644
+    owner: coredns
+    group: coredns
+    force: yes
+    dest: /etc/coredns/hosts
+    content: |
+      127.0.0.1   localhost
+      ::1         localhost
+        
+- name: add inventory hosts to hosts file
+  when: '"wireguard" in inventory_hostname'
+  become: yes
+  blockinfile:
+    dest: "/etc/coredns/hosts"
+    insertafter: BOF
+    state: present
+    marker: "# {{ item }} ANSIBLE MANAGED HOST"
+    block: |
+      {{ hostvars[item].tags.wireguard_ip }} {{ hostvars[item].inventory_hostname }}
+  loop: "{{ groups.all }}"
+
+- name: Copy configuration file
+  become: yes
+  copy:
+    mode: 0644
+    owner: coredns
+    group: coredns
+    force: yes
+    dest: /etc/coredns/Corefile
+    content: |  
+      internal. {
+        hosts /etc/coredns/hosts {
+          fallthrough
+        }
+        
+        # If no host in host file found search in azure vnet dns
+        forward . 168.63.129.16
+      
+      }
+
+      . {
+        forward . tls://9.9.9.9 {
+          tls_servername dns.quad9.net
+          health_check 5s
+        }
+        cache 3600
+      }
+
+- name: ufw allow coredns udp
+  become: yes
+  ufw:
+    rule: allow
+    port: 53
+    proto: udp
+
+- name: ufw allow coredns tcp
+  become: yes
+  ufw:
+    rule: allow
+    port: 53
+    proto: tcp
+
+- name: Make sure coredns is running
+  become: yes
+  ansible.builtin.systemd:
+    state: restarted
+    name: coredns
+    enabled: yes

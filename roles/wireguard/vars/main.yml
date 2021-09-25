@@ -1,4 +1,8 @@
 wireguard_server_cidr: 192.168.8.0/32
-wireguard_vnet_cidr: 10.0.0.0/8, 192.168.0.0/16
+wireguard_vnet_cidr: 10.0.0.0/8, 192.168.8.0/24
 wireguard_server_endpoint: mdghome.switzerlandnorth.cloudapp.azure.com:51820
 wireguard_server_publickey: "{{ lookup('bitwarden', 'wireguard', field='server_publickey', custom_field=true) }}"
+
+# ToDO: Make as list
+wireguard_mobile_ip: "192.168.8.254"
+wireguard_mobile_publickey: "{{ lookup('bitwarden', 'wireguard', field='mobile1_publickey', custom_field=true) }}"

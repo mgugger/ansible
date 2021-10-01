@@ -13,18 +13,18 @@
 - include: enable-swap-azure.yml
   when: swap.stdout | length == 0 and ansible_facts.services['walinuxagent.service'] is defined
   tags: [ swap ]
-# NORMAL SWAP
-- name: operatingsystem_app_services
-  set_fact:
-    swapfile_location: "/"
-  when: ansible_facts['os_family'] == "Debian"
-  tags: [ swap ]
-- name: operatingsystem_app_services
-  set_fact:
-    swapfile_location: "/var/lib/swap/"
-  when: ansible_facts['os_family'] == "Suse"
-  tags: [ swap ]
-# use normal swapfile on ubuntu if there is no swap yet and no walinuxagent
-- include: enable-swap.yml
-  when: swap.stdout | length == 0 and ansible_facts.services['walinuxagent.service'] is not defined
-  tags: [ swap ]
+# TODO: NORMAL SWAP for BTRFS
+# - name: operatingsystem_app_services
+#   set_fact:
+#     swapfile_location: "/"
+#   when: ansible_facts['os_family'] == "Debian"
+#   tags: [ swap ]
+# - name: operatingsystem_app_services
+#   set_fact:
+#     swapfile_location: "/var/lib/swap/"
+#   when: ansible_facts['os_family'] == "Suse"
+#   tags: [ swap ]
+# # use normal swapfile on ubuntu if there is no swap yet and no walinuxagent
+# - include: enable-swap.yml
+#   when: swap.stdout | length == 0 and ansible_facts.services['walinuxagent.service'] is not defined
+#   tags: [ swap ]

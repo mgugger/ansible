@@ -11,3 +11,4 @@ default_host_filters:
   - "provisioning_state != \"succeeded\""
 keyed_groups:
  - key: tags.applicationRole
+ - key: powerstate

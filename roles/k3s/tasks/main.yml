@@ -1,8 +1,8 @@
-# ---
-# - name: Install k3s-bin
-#   command: yay -S k3s-bin --noconfirm
-#   args:
-#     warn: no
+---
+- name: Install k3s-bin
+  command: yay -S k3s-bin --noconfirm
+  args:
+    warn: no
 
 - name: Set hostname to "{{ inventory_hostname }}"
   become: yes
@@ -19,7 +19,7 @@
 
 - name: edit k3s systemd service for server
   become: yes
-  when: hostvars[inventory_hostname]['tags']['k3s-role'] == "server"
+  when: "'_k3s_server' in group_names"
   copy:
     mode: 0644
     owner: root
@@ -29,11 +29,11 @@
     content: |
       [Service]
       ExecStart=
-      ExecStart=/usr/bin/k3s server --token {{ k3s_token }} --advertise-address {{ hostvars[inventory_hostname]['tags']['wireguard_ip'] }} --flannel-iface=wg0 --node-taint node-role.kubernetes.io/master=true:NoSchedule
+      ExecStart=/usr/bin/k3s server --server {{ k3s_server_url }} --snapshotter=native --token {{ k3s_token }} --advertise-address {{ hostvars[inventory_hostname]['tags']['wireguard_ip'] }} --flannel-iface=wg0 --node-taint node-role.kubernetes.io/master=true:NoSchedule
 
 - name: edit k3s systemd service for agent
   become: yes
-  when: hostvars[inventory_hostname]['tags']['k3s-role'] == "agent"
+  when: "'_k3s_agent' in group_names"
   copy:
     mode: 0644
     owner: root
@@ -43,7 +43,7 @@
     content: |
       [Service]
       ExecStart=
-      ExecStart=/usr/bin/k3s agent --server {{ k3s_server_url }} --token {{ k3s_token }} --flannel-iface=wg0
+      ExecStart=/usr/bin/k3s agent --snapshotter=native --server {{ k3s_server_url }} --token {{ k3s_token }} --flannel-iface=wg0
 
 - name: ufw allow k3s 6443
   become: yes
@@ -82,8 +82,9 @@
     proto: tcp
 
 - name: Reload service k3s
+  become: yes
   ansible.builtin.systemd:
-    name: k3s.service
+    name: k3s
     no_block: yes
     daemon_reload: yes
     state: restarted

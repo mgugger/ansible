@@ -5,6 +5,6 @@
   - wireguard
   tasks:
   - name: Install coredns on server
-    when: '"wireguard" in inventory_hostname'
+    when: "'_wireguard' in group_names"
     include_role:
       name: coredns

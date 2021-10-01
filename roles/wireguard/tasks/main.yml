@@ -61,14 +61,13 @@
   become: yes
   blockinfile:
     dest: "/etc/wireguard/wg0.conf"
-    insertafter: BOF
     state: present
-    marker: "# ANSIBLE MANAGED {{ inventory_hostname }} WG PEER"
+    marker: "# {mark} ANSIBLE MANAGED {{ inventory_hostname }} WG CONFIGURATION"
     dest: "/etc/wireguard/wg0.conf"
     block: |
       [Interface]
       Address = {{ hostvars[inventory_hostname].tags.wireguard_ip }}
-      PrivateKey = {{ wireguard_server_privatekey['content'] | b64decode }}
+      PrivateKey = {{ wireguard_server_privatekey['content'] | b64decode | trim }}
       ListenPort = 51820
       PostUp = ufw route allow in on wg0 out on {{ ansible_default_ipv4.interface }}
       PostUp = iptables -t nat -I POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
@@ -77,14 +76,26 @@
       PreDown = iptables -t nat -D POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
       PreDown = ip6tables -t nat -D POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
 
-- name: add wireguard server as peer
+- name: Get the public key from peers
+  become: yes
+  ansible.builtin.slurp:
+    src: /etc/wireguard/publickey
+  register: publickeys
+  loop: "{{ groups._running |difference([inventory_hostname]) }}"
+  delegate_to: "{{ item }}"
+  ignore_unreachable: yes
+
+- name: get subnet from netmask
+  set_fact:
+    subnet: "{{ (ansible_default_ipv4.address + '/255.255.255.0') | ansible.netcommon.ipaddr('network/prefix') }}"
+
+- name: add wireguard server as peer if it is in another subnet
   when: "not '_wireguard' in group_names"
   become: yes
   blockinfile:
     dest: "/etc/wireguard/wg0.conf"
-    insertafter: BOF
     state: present
-    marker: "# ANSIBLE MANAGED {{ inventory_hostname }} WG PEER"
+    marker: "# {mark} ANSIBLE MANAGED {{ inventory_hostname }} server WG PEER"
     block: |
       [Peer]
       PublicKey = {{ wireguard_server_publickey }}
@@ -95,47 +106,33 @@
       PersistentKeepalive = 25
       {% endif %}
 
-- name: Get the public key from peers
-  become: yes
-  ansible.builtin.slurp:
-    src: /etc/wireguard/publickey
-  register: publickeys
-  loop: "{{ groups._running |difference([inventory_hostname]) }}"
-  delegate_to: "{{ item }}"
-
-- name: get subnet from netmask
-  set_fact:
-    subnet: "{{ (ansible_default_ipv4.address + '/255.255.255.0') | ansible.netcommon.ipaddr('network/prefix') }}"
-
 - name: add wireguard peers for mesh
-  when: "not '_wireguard' in group_names"
+  when: "not '_wireguard' in group_names and (not item['item'] == groups._wireguard[0])"
   become: yes
   blockinfile:
     dest: "/etc/wireguard/wg0.conf"
-    insertafter: BOF
     state: present
-    marker: "# ANSIBLE MANAGED WG {{ item['item'] }} PEER"
+    marker: "# {mark} ANSIBLE MANAGED WG {{ item['item'] }} MESH PEER"
     block: |
       {% if subnet | ansible.netcommon.network_in_usable(hostvars[item['item']]['private_ipv4_addresses'][0] | default(hostvars[item['item']].ansible_host)) %}
       [Peer]
       AllowedIPs = {{ hostvars[item['item']].tags.wireguard_ip }}
-      PublicKey = {{ item['content'] | b64decode }}
+      PublicKey = {{ item['content'] | b64decode | trim }}
       Endpoint = {{ hostvars[item['item']]['private_ipv4_addresses'][0] | default(hostvars[item['item']].ansible_host) }}:51820
       {% endif %}
   loop: "{{ publickeys['results'] }}"
 
 - name: add wireguard peers to server
-  when: '"_wireguard" in group_names'
   become: yes
+  when: "'_wireguard' in group_names and item['content'] is defined"
   blockinfile:
     dest: "/etc/wireguard/wg0.conf"
-    insertafter: BOF
     state: present
-    marker: "# ANSIBLE MANAGED WG {{ item['item'] }}  PEER"
+    marker: "# {mark} ANSIBLE MANAGED WG {{ item['item'] }} SERVER PEER"
     block: |
       [Peer]
       AllowedIPs = {{ hostvars[item['item']].tags.wireguard_ip }}
-      PublicKey = {{ item['content'] | b64decode }}
+      PublicKey = {{ item['content'] | b64decode | trim }}
       {% if (hostvars[item['item']]['private_ipv4_addresses'][0] | default(hostvars[item['item']].ansible_host)) | ipaddr(subnet) | ipaddr('bool') %}
       Endpoint = {{ hostvars[item['item']]['private_ipv4_addresses'][0] | default(hostvars[item['item']].ansible_host) }}:51820
       {% endif %}
@@ -146,7 +143,6 @@
   become: yes
   blockinfile:
     dest: "/etc/wireguard/wg0.conf"
-    insertafter: BOF
     state: present
     marker: "# mobile1 ANSIBLE MANAGED WG PEER"
     block: |
@@ -162,19 +158,6 @@
     sysctl_set: yes
     state: present
     reload: yes
-
-- name: Make sure wireguard is running
-  become: yes
-  ansible.builtin.systemd:
-    state: started
-    name: wg-quick@wg0
-    enabled: yes
-
-- name: Sync wg conf
-  become: yes
-  shell: wg syncconf wg0 <(wg-quick strip wg0)
-  args:
-    warn: no 
 
 - name: limit ssh on ufw
   become: yes
@@ -209,3 +192,18 @@
     state: started
     name: ufw
     enabled: yes
+
+- name: Make sure wireguard is running
+  become: yes
+  ansible.builtin.systemd:
+    state: restarted
+    name: wg-quick@wg0
+    enabled: yes
+
+# TODO: Check for newly added peers with changed_when and add the routes manually
+# Sync WG Conf does not update routes in case of newly added peers
+# - name: Sync wg conf
+#   become: yes
+#   shell: wg syncconf wg0 <(wg-quick strip wg0)
+#   args:
+#     warn: no

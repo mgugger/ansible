@@ -1,10 +1,12 @@
-- name: configure wireguard server
-  hosts: all
+- name: configure wireguard peers
+  hosts: all:!_wireguard
   roles:
   - ansible-modules-bitwarden
   - wireguard
-  tasks:
-  - name: Install coredns on server
-    when: "'_wireguard' in group_names"
-    include_role:
-      name: coredns
+
+- name: configure wireguard server
+  hosts: _wireguard
+  roles:
+  - ansible-modules-bitwarden
+  - wireguard
+  - coredns

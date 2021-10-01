@@ -39,4 +39,4 @@
   systemd:
     state: restarted
     enabled: yes
-    name: walinuxagent
+    name: waagent

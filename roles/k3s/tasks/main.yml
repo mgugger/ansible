@@ -56,41 +56,38 @@
       ExecStart=
       ExecStart=/usr/bin/k3s agent --snapshotter=native --server {{ k3s_server_url }} --token {{ k3s_token['content'] | b64decode | trim }} --flannel-iface=wg0
 
-- name: ufw allow k3s 6443
-  become: yes
-  ufw:
-    rule: allow
-    interface: wg0
-    direction: in
-    port: 6443
-    proto: tcp
+- name: set kubernetes ports
+  set_fact:
+    k3s_ports:
+      - 6443
+      - 8472
+      - 10250
+      - 2379:2380
+      - 80
+      - 443
+    flannel_ports:
+      - 8285
+      - 8472
 
-- name: ufw allow k3s 8472
+- name: ufw allow k3s ports
   become: yes
   ufw:
     rule: allow
     interface: wg0
-    port: 8472
     direction: in
+    port: "{{ item }}"
+    proto: tcp
+  loop: "{{ k3s_ports }}"
+
+- name: ufw allow k3s flannel ports
+  become: yes
+  ufw:
+    rule: allow
+    interface: wg0
+    direction: in
+    port: "{{ item }}"
     proto: udp
-
-- name: ufw allow k3s 10250
-  become: yes
-  ufw:
-    rule: allow
-    interface: wg0
-    port: 10250
-    direction: in
-    proto: tcp
-
-- name: ufw allow k3s ha for embedded etc 2379-2380
-  become: yes
-  ufw:
-    rule: allow
-    interface: wg0
-    port: 2379:2380
-    direction: in
-    proto: tcp
+  loop: "{{ flannel_ports }}"
 
 - name: Reload service k3s
   become: yes

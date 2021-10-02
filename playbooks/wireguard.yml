@@ -1,12 +1,17 @@
 - name: configure wireguard peers
   hosts: all:!_wireguard
   roles:
-  - ansible-modules-bitwarden
-  - wireguard
+  - role: ansible-modules-bitwarden
+    tags: [ always ]
+  - role: wireguard
+    tags: [ wireguard ]
 
 - name: configure wireguard server
   hosts: _wireguard
   roles:
-  - ansible-modules-bitwarden
-  - wireguard
-  - coredns
+  - role: ansible-modules-bitwarden
+    tags: [ always ]
+  - role: wireguard
+    tags: [ wireguard ]
+  - role: coredns
+    tags: [ coredns ]

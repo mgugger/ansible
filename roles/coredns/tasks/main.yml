@@ -4,6 +4,14 @@
   args:
     warn: no
 
+- name: Create zones directory
+  become: yes
+  file:
+    owner: coredns
+    group: coredns
+    path: /etc/coredns/zones
+    state: directory
+
 - name: set custom hosts file
   become: yes
   copy:
@@ -15,6 +23,7 @@
     content: |
       127.0.0.1   localhost
       ::1         localhost
+      127.0.0.1   nameserver
         
 - name: add inventory hosts to hosts file
   when: '"wireguard" in inventory_hostname'
@@ -23,10 +32,28 @@
     dest: "/etc/coredns/hosts"
     insertafter: BOF
     state: present
-    marker: "# {{ item }} ANSIBLE MANAGED HOST"
+    marker: "# {mark} {{ item }} ANSIBLE MANAGED HOST"
     block: |
       {{ hostvars[item].tags.wireguard_ip.split("/")[0] }} {{ hostvars[item].inventory_hostname }}
   loop: "{{ groups.all }}"
+
+- name: set custom zone file for .internal
+  become: yes
+  copy:
+    mode: 0644
+    owner: coredns
+    group: coredns
+    force: yes
+    dest: /etc/coredns/zones/internal.zone
+    content: |
+      $ORIGIN internal.
+      @	3600 IN	SOA sns.dns.icann.org. noc.dns.icann.org. 2017042745 7200 3600 1209600 3600
+        3600 IN NS a.iana-servers.net.
+        3600 IN NS b.iana-servers.net.
+
+      {% for k3s_node in (groups._k3s_agent|union(groups._k3s_server)) %}
+      *         IN  A     {{ hostvars[k3s_node]['tags']['wireguard_ip'].split("/")[0] }};
+      {% endfor %}
 
 - name: Copy configuration file
   become: yes
@@ -44,9 +71,13 @@
 
         forward . tls://9.9.9.9 {
           tls_servername dns.quad9.net
-          health_check 5s
+          health_check 30s
         }
         cache 3600
+      }
+
+      internal. {
+        file /etc/coredns/zones/internal.zone
       }
 
 - name: ufw allow coredns udp

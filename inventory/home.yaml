@@ -11,6 +11,9 @@ home:
         wireguard_ip: 192.168.8.2
         k3s-role: server
   children:
+    _coredns:
+      hosts:
+        raspi:
     _k3s_agent:
       hosts:
         desktop:

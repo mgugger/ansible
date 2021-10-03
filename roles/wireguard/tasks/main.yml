@@ -60,7 +60,6 @@
 - name: Creating wireguard config
   become: yes
   blockinfile:
-    dest: "/etc/wireguard/wg0.conf"
     state: present
     marker: "# {mark} ANSIBLE MANAGED {{ inventory_hostname }} WG CONFIGURATION"
     dest: "/etc/wireguard/wg0.conf"
@@ -150,10 +149,19 @@
       AllowedIPs = {{ wireguard_mobile_ip }}
       PublicKey = {{ wireguard_mobile_publickey }}
 
-- name: allow ip forward
+- name: allow ipv4 forward
   become: yes
   ansible.posix.sysctl:
     name: net.ipv4.ip_forward
+    value: '1'
+    sysctl_set: yes
+    state: present
+    reload: yes
+
+- name: allow ipv6 forward
+  become: yes
+  ansible.posix.sysctl:
+    name: net.ipv6.conf.all.forwarding
     value: '1'
     sysctl_set: yes
     state: present

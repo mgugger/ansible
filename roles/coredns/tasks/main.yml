@@ -100,3 +100,23 @@
     state: restarted
     name: coredns
     enabled: yes
+
+- name: Copy nameserver for systemd-resolved for vagrant
+  become: yes
+  copy:
+    force: yes
+    mode: 0644
+    dest: /etc/systemd/resolved.conf
+    content: |
+      [Resolve]
+      DNSStubListener=no
+      DNS=127.0.0.1
+      Domains=internal.
+      FallbackDNS=9.9.9.9 1.1.1.1
+
+- name: Make sure systemd-resolved is restarted
+  become: yes
+  ansible.builtin.systemd:
+    state: restarted
+    name: systemd-resolved
+    enabled: yes 

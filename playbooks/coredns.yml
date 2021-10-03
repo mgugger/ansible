@@ -1,0 +1,5 @@
+- name: configure wireguard server
+  hosts: _coredns
+  roles:
+  - role: coredns
+    tags: [ coredns ]

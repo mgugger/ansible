@@ -1,10 +1,10 @@
 home:
   hosts:
-    desktop:
-      ansible_host: 192.168.0.164
-      tags:
-        wireguard_ip: 192.168.8.1
-        k3s-role: agent
+    # desktop:
+    #   ansible_host: 192.168.0.164
+    #   tags:
+    #     wireguard_ip: 192.168.8.1
+    #     k3s-role: agent
     raspi:
       ansible_host: 192.168.0.45
       tags:

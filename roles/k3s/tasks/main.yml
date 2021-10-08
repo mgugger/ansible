@@ -9,6 +9,7 @@
   command: hostnamectl set-hostname {{ inventory_hostname }}
 
 - name: Get the k3s token
+  ignore_errors: true
   become: yes
   ansible.builtin.slurp:
     src: /var/lib/rancher/k3s/server/node-token
@@ -40,7 +41,7 @@
     content: |
       [Service]
       ExecStart=
-      ExecStart=/usr/bin/k3s server --server {{ k3s_server_url }} --snapshotter=native --token {{ k3s_token['content'] | b64decode | trim }} --advertise-address {{ hostvars[inventory_hostname]['tags']['wireguard_ip'] }} --flannel-iface=wg0 --node-taint node-role.kubernetes.io/master=true:NoSchedule
+      ExecStart=/usr/bin/k3s server --server --snapshotter=native --advertise-address {{ hostvars[inventory_hostname]['tags']['wireguard_ip'].split("/")[0] }} --flannel-iface=wg0 --node-taint node-role.kubernetes.io/master=true:NoSchedule
 
 - name: edit k3s systemd service for agent
   become: yes
@@ -59,62 +60,20 @@
       ExecStart=
       ExecStart=/usr/bin/k3s agent --snapshotter=native --server {{ k3s_server_url }} --token {{ k3s_token['content'] | b64decode | trim }} --flannel-iface=wg0
 
-- name: set kubernetes ports
-  set_fact:
-    k3s_ports:
-      - 80
-      - 443
-      - 2379:2380
-      - 4789
-      - 6443
-      - 8443
-      - 8472
-      - 9099
-      - 9100
-      - 9443
-      - 9796
-      - 10250
-      - 10254
-      - 30000:65535
-    flannel_ports:
-      - 8285
-      - 8472
-      - 30000:65535
-
-- name: ufw allow k3s ports
+- name: disable ufw for k3s
+  when: "'systemd' in process_one['stdout']"
   become: yes
   ufw:
-    rule: allow
-    interface: wg0
-    direction: in
-    port: "{{ item }}"
-    proto: tcp
-  loop: "{{ k3s_ports }}"
+    state: disabled
+    policy: deny
 
-- name: ufw allow k3s flannel ports
+- name: Make sure ufw is disabled
   become: yes
-  ufw:
-    rule: allow
-    interface: wg0
-    direction: in
-    port: "{{ item }}"
-    proto: udp
-  loop: "{{ flannel_ports }}"
-
-- name: ufw allow k3s flannel ports
-  become: yes
-  ufw:
-    rule: allow
-    interface: cni0
-    direction: in
-    proto: udp
-  loop: "{{ flannel_ports }}"
-
-- name: allow routed for flannel
-  become: yes
-  ufw:
-    rule: allow
-    route: yes
+  when: "'systemd' in process_one['stdout']"
+  ansible.builtin.systemd:
+    state: stopped
+    name: ufw
+    enabled: no
 
 - name: Reload service k3s
   become: yes

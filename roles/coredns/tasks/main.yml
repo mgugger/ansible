@@ -1,8 +1,11 @@
 ---
 - name: Install coredns
+  when: ansible_facts['os_family'] == "Archlinux"
   command: yay -S coredns-bin --noconfirm
   args:
     warn: no
+
+# TODO: Add Ubuntu
 
 - name: Create zones directory
   become: yes

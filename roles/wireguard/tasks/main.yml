@@ -24,8 +24,7 @@
     state: present
 
 - name: install ufw
-  when: ansible_facts['os_family'] == "Archlinux" and (group_names | select('search','k3s') | list | count <= 0)
-
+  when: ansible_facts['os_family'] == "Archlinux"
   become: yes
   community.general.pacman:
     name: ufw

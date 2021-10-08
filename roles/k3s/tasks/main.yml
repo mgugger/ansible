@@ -9,6 +9,7 @@
   command: hostnamectl set-hostname {{ inventory_hostname }}
 
 - name: Get the k3s token
+  ignore_errors: true
   become: yes
   ansible.builtin.slurp:
     src: /var/lib/rancher/k3s/server/node-token
@@ -17,7 +18,10 @@
 
 - name: Set k3s server url
   set_fact:
-    k3s_server_url: "https://{{ hostvars[groups._k3s_server[0]].tags.wireguard_ip }}:6443"
+    k3s_server_url: 'https://{{ hostvars[groups._k3s_server[0]].tags.wireguard_ip.split("/")[0] }}:6443'
+
+- debug:
+    msg: "{{ k3s_server_url }}"
 
 - name: Create a directory if it does not exist
   become: yes
@@ -28,9 +32,9 @@
     group: root
     mode: '0644'
 
-- name: edit k3s systemd service for server
+- name: edit k3s systemd service for initial server
   become: yes
-  when: "'_k3s_server' in group_names"
+  when: "'_k3s_server' in group_names and k3s_token['content'] is not defined"
   copy:
     mode: 0644
     owner: root
@@ -38,9 +42,31 @@
     force: yes
     dest: /etc/systemd/system/k3s.service.d/network.conf
     content: |
+      [Unit]
+      After=wg-quick@wg0.service
+      After=iptables.service
+
       [Service]
       ExecStart=
-      ExecStart=/usr/bin/k3s server --server {{ k3s_server_url }} --snapshotter=native --token {{ k3s_token['content'] | b64decode | trim }} --advertise-address {{ hostvars[inventory_hostname]['tags']['wireguard_ip'] }} --flannel-iface=wg0 --node-taint node-role.kubernetes.io/master=true:NoSchedule
+      ExecStart=/usr/bin/k3s server --cluster-init --snapshotter=native --advertise-address {{ hostvars[inventory_hostname]['tags']['wireguard_ip'].split("/")[0] }} --flannel-iface=wg0 --node-taint node-role.kubernetes.io/master=true:NoSchedule
+
+- name: edit k3s systemd service for server
+  become: yes
+  when: "'_k3s_server' in group_names and k3s_token['content'] is defined"
+  copy:
+    mode: 0644
+    owner: root
+    group: root
+    force: yes
+    dest: /etc/systemd/system/k3s.service.d/network.conf
+    content: |
+      [Unit]
+      After=wg-quick@wg0.service
+      After=iptables.service
+
+      [Service]
+      ExecStart=
+      ExecStart=/usr/bin/k3s server --server {{ k3s_server_url }} --snapshotter=native --token {{ k3s_token['content'] | b64decode | trim }} --advertise-address {{ hostvars[inventory_hostname]['tags']['wireguard_ip'].split("/")[0] }} --flannel-iface=wg0 --node-taint node-role.kubernetes.io/master=true:NoSchedule
 
 - name: edit k3s systemd service for agent
   become: yes
@@ -54,73 +80,65 @@
     content: |
       [Unit]
       After=wg-quick@wg0.service
+      After=iptables.service
 
       [Service]
       ExecStart=
       ExecStart=/usr/bin/k3s agent --snapshotter=native --server {{ k3s_server_url }} --token {{ k3s_token['content'] | b64decode | trim }} --flannel-iface=wg0
 
-- name: set kubernetes ports
-  set_fact:
-    k3s_ports:
-      - 80
-      - 443
-      - 2379:2380
-      - 4789
-      - 6443
-      - 8443
-      - 8472
-      - 9099
-      - 9100
-      - 9443
-      - 9796
-      - 10250
-      - 10254
-      - 30000:65535
-    flannel_ports:
-      - 8285
-      - 8472
-      - 30000:65535
-
-- name: ufw allow k3s ports
+- name: Allow SSH on iptables
+  ansible.builtin.iptables:
+    in_interface: eth0
+    protocol: tcp
+    limit: 5/s
+    destination_port: 22
+    jump: ACCEPT
+    chain: INPUT
   become: yes
-  ufw:
-    rule: allow
-    interface: wg0
-    direction: in
-    port: "{{ item }}"
-    proto: tcp
-  loop: "{{ k3s_ports }}"
 
-- name: ufw allow k3s flannel ports
+- name: Allow Wireguard on iptables
+  ansible.builtin.iptables:
+    in_interface: eth0
+    destination_port: 51820
+    protocol: udp
+    jump: ACCEPT
+    chain: INPUT
   become: yes
-  ufw:
-    rule: allow
-    interface: wg0
-    direction: in
-    port: "{{ item }}"
-    proto: udp
-  loop: "{{ flannel_ports }}"
 
-- name: ufw allow k3s flannel ports
+- name: Deny all tcp on eth0 on iptables
+  ansible.builtin.iptables:
+    in_interface: eth0
+    protocol: tcp
+    jump: DROP
+    chain: INPUT
   become: yes
-  ufw:
-    rule: allow
-    interface: cni0
-    direction: in
-    proto: udp
-  loop: "{{ flannel_ports }}"
 
-- name: allow routed for flannel
+- name: Deny all udp on eth0 on iptables
+  ansible.builtin.iptables:
+    in_interface: eth0
+    protocol: udp
+    jump: DROP
+    chain: INPUT
   become: yes
-  ufw:
-    rule: allow
-    route: yes
+
+- name: Save current state of iptables in system file
+  become: yes
+  community.general.iptables_state:
+    state: saved
+    path: /etc/iptables/iptables.rules
+
+- name: Start and enable iptables
+  become: yes
+  ansible.builtin.systemd:
+    name: iptables
+    enabled: yes
+    daemon_reload: yes
+    state: restarted
 
 - name: Reload service k3s
   become: yes
   ansible.builtin.systemd:
     name: k3s
-    no_block: yes
     enabled: yes
     daemon_reload: yes
     state: restarted

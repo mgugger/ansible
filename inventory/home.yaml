@@ -9,7 +9,7 @@ home:
       ansible_host: 192.168.0.45
       tags:
         wireguard_ip: 192.168.8.2
-        k3s-role: server
+        k3s-role: agent
   children:
     _coredns:
       hosts:
@@ -17,9 +17,9 @@ home:
     _k3s_agent:
       hosts:
         desktop:
+        raspi:
     _k3s_server:
       hosts:
-        raspi:
     _running:
       hosts:
         raspi:

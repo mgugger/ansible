@@ -14,7 +14,8 @@
     state: present
 
 - name: install ufw
-  when: ansible_facts['os_family'] == "Archlinux"
+  when: ansible_facts['os_family'] == "Archlinux" and (group_names | select('search','k3s') | list | count <= 0)
+
   become: yes
   community.general.pacman:
     name: ufw
@@ -168,6 +169,7 @@
     reload: yes
 
 - name: limit ssh on ufw
+  when: not (group_names | select('search','k3s') | list | count > 0)
   become: yes
   ufw:
     rule: limit
@@ -175,6 +177,7 @@
     proto: tcp
 
 - name: ufw allow wireguard
+  when: not (group_names | select('search','k3s') | list | count > 0)
   become: yes
   ufw:
     rule: allow
@@ -182,13 +185,14 @@
     proto: udp
 
 - name: enable ufw
+  when: (group_names | select('search','k3s') | list | count <= 0)
   become: yes
   ufw:
     state: enabled
     policy: deny
 
 - name: allow forwarding from eth0 to wg on server
-  when: '"wireguard" in group_names'
+  when: '"wireguard" in group_names and (group_names | select("search","k3s") | list | count <= 0)'
   become: yes
   ufw:
     rule: allow
@@ -196,6 +200,7 @@
 
 - name: Make sure ufw is enabled
   become: yes
+  when: group_names | select('search','k3s') | list | count <= 0
   ansible.builtin.systemd:
     state: started
     name: ufw

@@ -3,8 +3,9 @@ wireguard_server_publickey: "{{ lookup('bitwarden', 'wireguard', field='server_p
 
 wireguard_vnet_cidr: 192.168.8.0/24
 
+# TODO: Allow multiple
 remote_vnet_cidr: 10.0.172.0/24
 
-# ToDO: Make as list
+# TODO: Make as list
 wireguard_mobile_ip: "192.168.8.254"
 wireguard_mobile_publickey: "{{ lookup('bitwarden', 'wireguard', field='mobile1_publickey', custom_field=true) }}"

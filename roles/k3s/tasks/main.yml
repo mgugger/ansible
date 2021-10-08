@@ -20,9 +20,6 @@
   set_fact:
     k3s_server_url: 'https://{{ hostvars[groups._k3s_server[0]].tags.wireguard_ip.split("/")[0] }}:6443'
 
-- debug:
-    msg: "{{ k3s_server_url }}"
-
 - name: Create a directory if it does not exist
   become: yes
   ansible.builtin.file:

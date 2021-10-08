@@ -1,0 +1,11 @@
+home:
+  hosts:
+    # desktop:
+    #   ansible_host: localhost
+    #   ansible_connection: local
+    #   tags:
+    #     wireguard_ip: 192.168.8.1
+  children:
+    _running:
+      hosts:
+        desktop:

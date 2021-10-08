@@ -1,4 +1,14 @@
 ---
+- name: Get the public key from peers
+  ignore_unreachable: yes
+  become: yes
+  ansible.builtin.slurp:
+    src: /etc/wireguard/publickey
+  register: publickeys
+  loop: "{{ groups._running |difference([inventory_hostname]) }}"
+  delegate_to: "{{ item }}"
+  ignore_unreachable: yes
+
 - name: Update repositories cache and install "wireguard" package
   when: ansible_facts['os_family'] == "Debian"
   become: yes
@@ -76,15 +86,6 @@
       PreDown = iptables -t nat -D POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
       PreDown = ip6tables -t nat -D POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
 
-- name: Get the public key from peers
-  become: yes
-  ansible.builtin.slurp:
-    src: /etc/wireguard/publickey
-  register: publickeys
-  loop: "{{ groups._running |difference([inventory_hostname]) }}"
-  delegate_to: "{{ item }}"
-  ignore_unreachable: yes
-
 - name: get subnet from netmask
   set_fact:
     subnet: "{{ (ansible_default_ipv4.address + '/255.255.255.0') | ansible.netcommon.ipaddr('network/prefix') }}"
@@ -140,6 +141,7 @@
 
 - name: add mobile peers to server
   when: '"_wireguard" in group_names'
+  ignore_errors: true
   become: yes
   blockinfile:
     dest: "/etc/wireguard/wg0.conf"
@@ -184,6 +186,10 @@
     port: 51820
     proto: udp
 
+- name: check if system is using systemd
+  command: ps -p 1
+  register: process_one
+
 - name: enable ufw
   when: (group_names | select('search','k3s') | list | count <= 0)
   become: yes
@@ -198,6 +204,9 @@
     rule: allow
     route: yes
 
+- debug:
+    msg: "{{ process_one['stdout'] }}"
+
 - name: Make sure ufw is enabled
   become: yes
   when: group_names | select('search','k3s') | list | count <= 0
@@ -208,6 +217,7 @@
 
 - name: Make sure wireguard is running
   become: yes
+  when: "'systemd' in process_one['stdout'] and not 'k3s' in group_names"
   ansible.builtin.systemd:
     state: restarted
     name: wg-quick@wg0

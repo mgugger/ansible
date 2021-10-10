@@ -102,6 +102,14 @@
     chain: INPUT
   become: yes
 
+- name: Allow related and established connections
+  ansible.builtin.iptables:
+    in_interface: eth0
+    chain: INPUT
+    ctstate: ESTABLISHED,RELATED
+    jump: ACCEPT
+  become: yes
+
 - name: Deny all tcp on eth0 on iptables
   ansible.builtin.iptables:
     in_interface: eth0

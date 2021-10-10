@@ -89,36 +89,27 @@
   set_fact:
     subnet: "{{ (ansible_default_ipv4.address + '/255.255.255.0') | ansible.netcommon.ipaddr('network/prefix') }}"
 
-- name: add wireguard server as peer if it is in another subnet
-  when: "not '_wireguard' in group_names"
-  become: yes
-  blockinfile:
-    dest: "/etc/wireguard/wg0.conf"
-    state: present
-    marker: "# {mark} ANSIBLE MANAGED {{ inventory_hostname }} server WG PEER"
-    block: |
-      [Peer]
-      PublicKey = {{ wireguard_server_publickey }}
-      Endpoint = {{ wireguard_server_endpoint }}
-      AllowedIPs = {{ wireguard_vnet_cidr }} {{ ', {0}'.format(remote_vnet_cidr) if not (remote_vnet_cidr | ansible.netcommon.network_in_usable(hostvars[inventory_hostname]['private_ipv4_addresses'][0] | default(hostvars[inventory_hostname].ansible_host))) else '' }}
-      {% if not subnet | ansible.netcommon.network_in_usable(hostvars[inventory_hostname]['private_ipv4_addresses'][0] | default(hostvars[inventory_hostname].ansible_host)) %}
-      # For NAT to allow incoming traffic
-      PersistentKeepalive = 25
-      {% endif %}
-
 - name: add wireguard peers for mesh
-  when: "not '_wireguard' in group_names and (not item['item'] == groups._wireguard[0])"
+  when: 
+  - "not '_wireguard' in group_names"
+  # Peer is in same subnet or peer is server peer
+  - (subnet | ansible.netcommon.network_in_usable(hostvars[item['item']]['private_ipv4_addresses'][0] | default(hostvars[item['item']].ansible_host))) or
+    hostvars[item['item']]['public_dns_hostnames'][0] is defined
   become: yes
   blockinfile:
     dest: "/etc/wireguard/wg0.conf"
     state: present
     marker: "# {mark} ANSIBLE MANAGED WG {{ item['item'] }} MESH PEER"
     block: |
-      {% if subnet | ansible.netcommon.network_in_usable(hostvars[item['item']]['private_ipv4_addresses'][0] | default(hostvars[item['item']].ansible_host)) %}
       [Peer]
-      AllowedIPs = {{ hostvars[item['item']].tags.wireguard_ip }}
       PublicKey = {{ item['content'] | b64decode | trim }}
+      {% if subnet | ansible.netcommon.network_in_usable(hostvars[item['item']]['private_ipv4_addresses'][0] | default(hostvars[item['item']].ansible_host)) %}
+      AllowedIPs = {{ hostvars[item['item']].tags.wireguard_ip }}, {{ wireguard_vnet_cidr if hostvars[item['item']]['public_dns_hostnames'][0] is defined }}
       Endpoint = {{ hostvars[item['item']]['private_ipv4_addresses'][0] | default(hostvars[item['item']].ansible_host) }}:51820
+      {% elif hostvars[item['item']]['public_dns_hostnames'][0] is defined %}
+      Endpoint = {{ hostvars[item['item']]['public_dns_hostnames'][0] }}:51820
+      PersistentKeepalive = 25
+      AllowedIPs = {{ wireguard_vnet_cidr }}, {{ ', {0}'.format(remote_vnet_cidr) if not (remote_vnet_cidr | ansible.netcommon.network_in_usable(hostvars[inventory_hostname]['private_ipv4_addresses'][0] | default(hostvars[inventory_hostname].ansible_host))) else '' }}
       {% endif %}
   loop: "{{ publickeys['results'] }}"
 
@@ -202,9 +193,6 @@
   ufw:
     rule: allow
     route: yes
-
-- debug:
-    msg: "{{ process_one['stdout'] }}"
 
 - name: Make sure ufw is enabled
   become: yes

@@ -1,8 +1,8 @@
 ---
-# - name: Install k3s-bin
-#   command: yay -S k3s-bin --noconfirm
-#   args:
-#     warn: no
+- name: Install k3s-bin
+  command: yay -S k3s-bin --noconfirm
+  args:
+    warn: no
 
 - name: Set hostname to "{{ inventory_hostname }}"
   become: yes

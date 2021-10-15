@@ -1,8 +1,8 @@
 ---
-- name: Install k3s-bin
-  command: yay -S k3s-bin --noconfirm
-  args:
-    warn: no
+# - name: Install k3s-bin
+#   command: yay -S k3s-bin --noconfirm
+#   args:
+#     warn: no
 
 - name: Set hostname to "{{ inventory_hostname }}"
   become: yes
@@ -137,6 +137,28 @@
   ansible.builtin.systemd:
     name: iptables
     enabled: yes
+    daemon_reload: yes
+    state: restarted
+
+- name: enable journald volatile storage to reduce k3s load on the disk
+  become: yes
+  ansible.builtin.lineinfile:
+    path: /etc/systemd/journald.conf
+    insertafter: '^[Journal]'
+    regexp: '^Storage='
+    line: Storage=volatile
+
+- name: enable journald volatile storage to reduce k3s load on the disk
+  become: yes
+  ansible.builtin.lineinfile:
+    path: /etc/systemd/journald.conf
+    regexp: '^#Storage'
+    state: absent
+
+- name: Reload systemd-journal
+  become: yes
+  ansible.builtin.systemd:
+    name: systemd-journald
     daemon_reload: yes
     state: restarted
 

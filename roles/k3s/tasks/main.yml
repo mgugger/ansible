@@ -4,6 +4,13 @@
   args:
     warn: no
 
+- name: remove ufw
+  when: ansible_facts['os_family'] == "Archlinux"
+  become: yes
+  community.general.pacman:
+    name: ufw
+    state: absent
+
 - name: Set hostname to "{{ inventory_hostname }}"
   become: yes
   command: hostnamectl set-hostname {{ inventory_hostname }}
@@ -45,7 +52,7 @@
 
       [Service]
       ExecStart=
-      ExecStart=/usr/bin/k3s server --cluster-init --snapshotter=native --advertise-address {{ hostvars[inventory_hostname]['tags']['wireguard_ip'].split("/")[0] }} --flannel-iface=wg0 --node-taint node-role.kubernetes.io/master=true:NoSchedule
+      ExecStart=/usr/bin/k3s server --disable-network-policy --flannel-backend=none --cluster-cidr=10.44.0.0/16 --snapshotter=native --advertise-address {{ hostvars[inventory_hostname]['tags']['wireguard_ip'].split("/")[0] }} --node-taint node-role.kubernetes.io/master=true:NoSchedule --no-deploy=local-storage
 
 - name: edit k3s systemd service for server
   become: yes
@@ -63,7 +70,7 @@
 
       [Service]
       ExecStart=
-      ExecStart=/usr/bin/k3s server --server {{ k3s_server_url }} --snapshotter=native --token {{ k3s_token['content'] | b64decode | trim }} --advertise-address {{ hostvars[inventory_hostname]['tags']['wireguard_ip'].split("/")[0] }} --flannel-iface=wg0 --node-taint node-role.kubernetes.io/master=true:NoSchedule
+      ExecStart=/usr/bin/k3s server {% if hostvars[groups._k3s_server[0]].tags.wireguard_ip.split("/")[0] != hostvars[inventory_hostname]['tags']['wireguard_ip'].split("/")[0] %}--server {{ k3s_server_url }}{% else %}--cluster-init{% endif %} --snapshotter=native --token {{ k3s_token['content'] | b64decode | trim }} --advertise-address {{ hostvars[inventory_hostname]['tags']['wireguard_ip'].split("/")[0] }} --flannel-backend=none --cluster-cidr=10.44.0.0/16 --node-taint node-role.kubernetes.io/master=true:NoSchedule
 
 - name: edit k3s systemd service for agent
   become: yes
@@ -102,6 +109,15 @@
     chain: INPUT
   become: yes
 
+- name: Allow k3s 6443 on wg0
+  ansible.builtin.iptables:
+    in_interface: wg0
+    destination_port: 6443
+    protocol: tcp
+    jump: ACCEPT
+    chain: INPUT
+  become: yes
+
 - name: Allow related and established connections
   ansible.builtin.iptables:
     in_interface: eth0
@@ -126,6 +142,7 @@
     chain: INPUT
   become: yes
 
+# After k3s has added its own routes
 - name: Save current state of iptables in system file
   become: yes
   community.general.iptables_state:

@@ -1,14 +1,4 @@
 ---
-- name: Get the public key from peers
-  ignore_unreachable: yes
-  become: yes
-  ansible.builtin.slurp:
-    src: /etc/wireguard/publickey
-  register: publickeys
-  loop: "{{ groups._running |difference([inventory_hostname]) }}"
-  delegate_to: "{{ item }}"
-  ignore_unreachable: yes
-
 - name: Update repositories cache and install "wireguard" package
   when: ansible_facts['os_family'] == "Debian"
   become: yes
@@ -24,7 +14,7 @@
     state: present
 
 - name: install ufw
-  when: ansible_facts['os_family'] == "Archlinux"
+  when: ansible_facts['os_family'] == "Archlinux" and (group_names | select('search','k3s') | list | count <= 0)
   become: yes
   community.general.pacman:
     name: ufw
@@ -36,7 +26,7 @@
     path: "/etc/wireguard/privatekey"
   register: privatekey_result
 
-- name: Generate public key
+- name: Generate private key
   when: not privatekey_result.stat.exists
   become: yes
   shell: wg genkey > /etc/wireguard/privatekey
@@ -52,6 +42,15 @@
   become: yes
   shell: wg pubkey < /etc/wireguard/privatekey > /etc/wireguard/publickey
 
+- name: Get the public key from peers
+  ignore_unreachable: yes
+  become: yes
+  ansible.builtin.slurp:
+    src: /etc/wireguard/publickey
+  register: publickeys
+  loop: "{{ groups._running |difference([inventory_hostname]) }}"
+  delegate_to: "{{ item }}"
+
 - name: Get the private key
   become: yes
   ansible.builtin.slurp:
@@ -63,7 +62,7 @@
   copy:
     content: ""
     dest: "/etc/wireguard/wg0.conf"
-    force: no
+    force: yes
     group: root
     owner: root
 
@@ -78,10 +77,14 @@
       Address = {{ hostvars[inventory_hostname].tags.wireguard_ip }}
       PrivateKey = {{ wireguard_server_privatekey['content'] | b64decode | trim }}
       ListenPort = 51820
+      {% if not (group_names | select('search','k3s') | list | count > 0) %}
       PostUp = ufw route allow in on wg0 out on {{ ansible_default_ipv4.interface }}
+      {% endif %}
       PostUp = iptables -t nat -I POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
       PostUp = ip6tables -t nat -I POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
+      {% if not (group_names | select('search','k3s') | list | count > 0) %}
       PreDown = ufw route delete allow in on wg0 out on {{ ansible_default_ipv4.interface }}
+      {% endif %}
       PreDown = iptables -t nat -D POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
       PreDown = ip6tables -t nat -D POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
 
@@ -104,12 +107,12 @@
       [Peer]
       PublicKey = {{ item['content'] | b64decode | trim }}
       {% if subnet | ansible.netcommon.network_in_usable(hostvars[item['item']]['private_ipv4_addresses'][0] | default(hostvars[item['item']].ansible_host)) %}
-      AllowedIPs = {{ hostvars[item['item']].tags.wireguard_ip }}, {{ wireguard_vnet_cidr if hostvars[item['item']]['public_dns_hostnames'][0] is defined }}
+      AllowedIPs = {{ hostvars[item['item']].tags.wireguard_ip }} {{ (", " + wireguard_vnet_cidr) if hostvars[item['item']]['public_dns_hostnames'][0] is defined }}
       Endpoint = {{ hostvars[item['item']]['private_ipv4_addresses'][0] | default(hostvars[item['item']].ansible_host) }}:51820
       {% elif hostvars[item['item']]['public_dns_hostnames'][0] is defined %}
       Endpoint = {{ hostvars[item['item']]['public_dns_hostnames'][0] }}:51820
       PersistentKeepalive = 25
-      AllowedIPs = {{ wireguard_vnet_cidr }}, {{ ', {0}'.format(remote_vnet_cidr) if not (remote_vnet_cidr | ansible.netcommon.network_in_usable(hostvars[inventory_hostname]['private_ipv4_addresses'][0] | default(hostvars[inventory_hostname].ansible_host))) else '' }}
+      AllowedIPs = {{ wireguard_vnet_cidr }} {{ ', {0}'.format(remote_vnet_cidr) if not (remote_vnet_cidr | ansible.netcommon.network_in_usable(hostvars[inventory_hostname]['private_ipv4_addresses'][0] | default(hostvars[inventory_hostname].ansible_host))) else '' }}
       {% endif %}
   loop: "{{ publickeys['results'] }}"
 
@@ -204,16 +207,15 @@
 
 - name: Make sure wireguard is running
   become: yes
+  ignore_errors: true
   when: "'systemd' in process_one['stdout'] and not 'k3s' in group_names"
   ansible.builtin.systemd:
     state: restarted
     name: wg-quick@wg0
     enabled: yes
 
-# TODO: Check for newly added peers with changed_when and add the routes manually
-# Sync WG Conf does not update routes in case of newly added peers
-# - name: Sync wg conf
-#   become: yes
-#   shell: wg syncconf wg0 <(wg-quick strip wg0)
-#   args:
-#     warn: no
+- name: Sync wg conf
+  become: yes
+  shell: wg syncconf wg0 <(wg-quick strip wg0)
+  args:
+    warn: no

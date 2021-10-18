@@ -4,7 +4,24 @@
   args:
     warn: no
 
+- name: disable ufw
+  become: yes
+  ignore_errors: true
+  ansible.builtin.systemd:
+    name: ufw
+    enabled: no
+    daemon_reload: yes
+    state: stopped
+
+- name: disable ufw
+  ignore_errors: true
+  become: yes
+  ufw:
+    state: disabled
+    policy: allow
+
 - name: remove ufw
+  ignore_errors: true
   when: ansible_facts['os_family'] == "Archlinux"
   become: yes
   community.general.pacman:
@@ -52,7 +69,7 @@
 
       [Service]
       ExecStart=
-      ExecStart=/usr/bin/k3s server --disable-network-policy --flannel-backend=none --cluster-cidr=10.44.0.0/16 --snapshotter=native --advertise-address {{ hostvars[inventory_hostname]['tags']['wireguard_ip'].split("/")[0] }} --node-taint node-role.kubernetes.io/master=true:NoSchedule --no-deploy=local-storage
+      ExecStart=/usr/bin/k3s server --disable-network-policy --flannel-iface=wg0 --snapshotter=native --advertise-address {{ hostvars[inventory_hostname]['tags']['wireguard_ip'].split("/")[0] }} --node-taint node-role.kubernetes.io/master=true:NoSchedule --disable local-storage
 
 - name: edit k3s systemd service for server
   become: yes
@@ -70,7 +87,7 @@
 
       [Service]
       ExecStart=
-      ExecStart=/usr/bin/k3s server {% if hostvars[groups._k3s_server[0]].tags.wireguard_ip.split("/")[0] != hostvars[inventory_hostname]['tags']['wireguard_ip'].split("/")[0] %}--server {{ k3s_server_url }}{% else %}--cluster-init{% endif %} --snapshotter=native --token {{ k3s_token['content'] | b64decode | trim }} --advertise-address {{ hostvars[inventory_hostname]['tags']['wireguard_ip'].split("/")[0] }} --flannel-backend=none --cluster-cidr=10.44.0.0/16 --node-taint node-role.kubernetes.io/master=true:NoSchedule
+      ExecStart=/usr/bin/k3s server --disable-network-policy {% if hostvars[groups._k3s_server[0]].tags.wireguard_ip.split("/")[0] != hostvars[inventory_hostname]['tags']['wireguard_ip'].split("/")[0] %}--server {{ k3s_server_url }}{% else %}--cluster-init{% endif %} --snapshotter=native --token {{ k3s_token['content'] | b64decode | trim }} --advertise-address {{ hostvars[inventory_hostname]['tags']['wireguard_ip'].split("/")[0] }} --flannel-iface=wg0 --node-taint node-role.kubernetes.io/master=true:NoSchedule --disable local-storage
 
 - name: edit k3s systemd service for agent
   become: yes
@@ -89,73 +106,6 @@
       [Service]
       ExecStart=
       ExecStart=/usr/bin/k3s agent --snapshotter=native --server {{ k3s_server_url }} --token {{ k3s_token['content'] | b64decode | trim }} --flannel-iface=wg0
-
-- name: Allow SSH on iptables
-  ansible.builtin.iptables:
-    in_interface: eth0
-    protocol: tcp
-    limit: 5/s
-    destination_port: 22
-    jump: ACCEPT
-    chain: INPUT
-  become: yes
-
-- name: Allow Wireguard on iptables
-  ansible.builtin.iptables:
-    in_interface: eth0
-    destination_port: 51820
-    protocol: udp
-    jump: ACCEPT
-    chain: INPUT
-  become: yes
-
-- name: Allow k3s 6443 on wg0
-  ansible.builtin.iptables:
-    in_interface: wg0
-    destination_port: 6443
-    protocol: tcp
-    jump: ACCEPT
-    chain: INPUT
-  become: yes
-
-- name: Allow related and established connections
-  ansible.builtin.iptables:
-    in_interface: eth0
-    chain: INPUT
-    ctstate: ESTABLISHED,RELATED
-    jump: ACCEPT
-  become: yes
-
-- name: Deny all tcp on eth0 on iptables
-  ansible.builtin.iptables:
-    in_interface: eth0
-    protocol: tcp
-    jump: DROP
-    chain: INPUT
-  become: yes
-
-- name: Deny all udp on eth0 on iptables
-  ansible.builtin.iptables:
-    in_interface: eth0
-    protocol: udp
-    jump: DROP
-    chain: INPUT
-  become: yes
-
-# After k3s has added its own routes
-- name: Save current state of iptables in system file
-  become: yes
-  community.general.iptables_state:
-    state: saved
-    path: /etc/iptables/iptables.rules
-
-- name: Start and enable iptables
-  become: yes
-  ansible.builtin.systemd:
-    name: iptables
-    enabled: yes
-    daemon_reload: yes
-    state: restarted
 
 - name: enable journald volatile storage to reduce k3s load on the disk
   become: yes
@@ -191,6 +141,7 @@
   when: ansible_facts['os_family'] == "Archlinux"
   become: yes
   community.general.pacman:
+    update_cache: yes
     name: open-iscsi
     state: present
 
@@ -200,3 +151,107 @@
     name: iscsid
     enabled: yes
     state: started
+
+- name: Allow SSH on iptables
+  ansible.builtin.iptables:
+    in_interface: eth0
+    protocol: tcp
+    limit: 3/s
+    destination_port: 22
+    jump: ACCEPT
+    chain: INPUT
+  become: yes
+
+- name: Allow Wireguard on iptables
+  ansible.builtin.iptables:
+    in_interface: eth0
+    destination_port: 51820
+    protocol: udp
+    jump: ACCEPT
+    chain: INPUT
+  become: yes
+
+- name: Allow in 6443 on wg0
+  ansible.builtin.iptables:
+    in_interface: wg0
+    destination_port: 6443
+    protocol: tcp
+    jump: ACCEPT
+    chain: INPUT
+  become: yes
+
+- name: Allow related and established connections for incoming connections on eth0
+  ansible.builtin.iptables:
+    in_interface: eth0
+    chain: INPUT
+    ctstate: ESTABLISHED,RELATED
+    jump: ACCEPT
+  become: yes
+
+- name: Allow all outgoing connections
+  ansible.builtin.iptables:
+    chain: OUTPUT
+    jump: ACCEPT
+  become: yes
+
+- name: Allow cni0 input
+  ansible.builtin.iptables:
+    in_interface: cni0
+    chain: INPUT
+    source: 10.42.0.0/16
+    jump: ACCEPT
+  become: yes
+
+- name: Allow cni0 forward
+  ansible.builtin.iptables:
+    in_interface: cni0
+    chain: FORWARD
+    source: 10.42.0.0/15
+    jump: ACCEPT
+  become: yes
+
+- name: Allow wg0 input
+  ansible.builtin.iptables:
+    in_interface: cni0
+    chain: INPUT
+    source: 0.0.0.0/0
+    jump: ACCEPT
+  become: yes
+
+- name: Allow wg0 forward
+  ansible.builtin.iptables:
+    in_interface: wg0
+    chain: FORWARD
+    source: 0.0.0.0/0
+    jump: ACCEPT
+  become: yes
+
+- name: Deny all tcp on eth0 on iptables
+  ansible.builtin.iptables:
+    in_interface: eth0
+    protocol: tcp
+    jump: DROP
+    chain: INPUT
+  become: yes
+
+- name: Deny all udp on eth0 on iptables
+  ansible.builtin.iptables:
+    in_interface: eth0
+    protocol: udp
+    jump: DROP
+    chain: INPUT
+  become: yes
+
+- name: Save current state of iptables in system file
+  become: yes
+  community.general.iptables_state:
+    state: saved
+    path: /etc/iptables/iptables.rules
+
+- name: Start and enable iptables
+  become: yes
+  ansible.builtin.systemd:
+    name: iptables
+    enabled: yes
+    daemon_reload: yes
+    state: restarted

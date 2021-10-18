@@ -35,8 +35,17 @@
     line: ResourceDisk.SwapSizeMB=2048
 
 - name: Make sure walinuxagent is restarted
+  when: ansible_facts['os_family'] == "Archlinux"
   become: yes
   systemd:
     state: restarted
     enabled: yes
     name: waagent
+
+- name: Make sure walinuxagent is restarted
+  when: ansible_facts['os_family'] == "Debian"
+  become: yes
+  systemd:
+    state: restarted
+    enabled: yes
+    name: walinuxagent

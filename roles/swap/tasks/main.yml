@@ -11,7 +11,7 @@
 # enable swap on azure vms through walinuxagent if there is no swap yet
 # https://docs.microsoft.com/en-us/troubleshoot/azure/virtual-machines/oom-swap-file-linux-vm#resolution
 - include: enable-swap-azure.yml
-  when: swap.stdout | length == 0 and ansible_facts.services['waagent.service'] is defined
+  when: swap.stdout | length == 0 and (ansible_facts.services['waagent.service'] is defined or ansible_facts.services['walinuxagent.service'] is defined)
   tags: [ swap ]
 # TODO: NORMAL SWAP for BTRFS
 # - name: operatingsystem_app_services

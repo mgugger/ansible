@@ -1,6 +1,14 @@
 ---
 - name: Install k3s-bin
+  when: ansible_facts['os_family'] == "Archlinux"
   command: yay -S k3s-bin --noconfirm
+  args:
+    warn: no
+
+- name: Install k3s
+  when: ansible_facts['os_family'] == "Debian"
+  shell: "curl -sfL https://get.k3s.io | INSTALL_K3S_SKIP_ENABLE=true INSTALL_K3S_BIN_DIR='/usr/bin/' sh -"
+  become: yes
   args:
     warn: no
 
@@ -69,7 +77,7 @@
 
       [Service]
       ExecStart=
-      ExecStart=/usr/bin/k3s server --disable-network-policy --flannel-iface=wg0 --snapshotter=native --advertise-address {{ hostvars[inventory_hostname]['tags']['wireguard_ip'].split("/")[0] }} --node-taint node-role.kubernetes.io/master=true:NoSchedule --disable local-storage
+      ExecStart=/usr/bin/k3s server --cluster-init --flannel-iface=wg0 --snapshotter=native --advertise-address {{ hostvars[inventory_hostname]['tags']['wireguard_ip'].split("/")[0] }} --node-taint node-role.kubernetes.io/master=true:NoSchedule --disable local-storage
 
 - name: edit k3s systemd service for server
   become: yes
@@ -87,7 +95,7 @@
 
       [Service]
       ExecStart=
-      ExecStart=/usr/bin/k3s server --disable-network-policy {% if hostvars[groups._k3s_server[0]].tags.wireguard_ip.split("/")[0] != hostvars[inventory_hostname]['tags']['wireguard_ip'].split("/")[0] %}--server {{ k3s_server_url }}{% else %}--cluster-init{% endif %} --snapshotter=native --token {{ k3s_token['content'] | b64decode | trim }} --advertise-address {{ hostvars[inventory_hostname]['tags']['wireguard_ip'].split("/")[0] }} --flannel-iface=wg0 --node-taint node-role.kubernetes.io/master=true:NoSchedule --disable local-storage
+      ExecStart=/usr/bin/k3s server {% if hostvars[groups._k3s_server[0]].tags.wireguard_ip.split("/")[0] != hostvars[inventory_hostname]['tags']['wireguard_ip'].split("/")[0] %}--server {{ k3s_server_url }}{% else %}--cluster-init{% endif %} --snapshotter=native --token {{ k3s_token['content'] | b64decode | trim }} --advertise-address {{ hostvars[inventory_hostname]['tags']['wireguard_ip'].split("/")[0] }} --flannel-iface=wg0 --node-taint node-role.kubernetes.io/master=true:NoSchedule --disable local-storage
 
 - name: edit k3s systemd service for agent
   become: yes
@@ -249,6 +257,7 @@
     path: /etc/iptables/iptables.rules
 
 - name: Start and enable iptables
+  when: ansible_facts['os_family'] == "Archlinux"
   become: yes
   ansible.builtin.systemd:
     name: iptables

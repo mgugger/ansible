@@ -1,11 +1,12 @@
-home:
+work:
   hosts:
-    # desktop:
-    #   ansible_host: localhost
-    #   ansible_connection: local
-    #   tags:
-    #     wireguard_ip: 192.168.8.1
+    surface:
+      ansible_host: localhost
+      ansible_connection: local
+      tags:
+        wireguard_ip: 192.168.9.1
+        wireguard_add_remote_cidrs: true
   children:
     _running:
       hosts:
-        desktop:
+        surface:

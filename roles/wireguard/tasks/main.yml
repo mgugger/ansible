@@ -112,7 +112,7 @@
       {% elif hostvars[item['item']]['public_dns_hostnames'][0] is defined %}
       Endpoint = {{ hostvars[item['item']]['public_dns_hostnames'][0] }}:51820
       PersistentKeepalive = 25
-      AllowedIPs = {{ wireguard_vnet_cidr }} {{ ', {0}'.format(remote_vnet_cidr) if not (remote_vnet_cidr | ansible.netcommon.network_in_usable(hostvars[inventory_hostname]['private_ipv4_addresses'][0] | default(hostvars[inventory_hostname].ansible_host))) else '' }}
+      AllowedIPs = {{ wireguard_vnet_cidr }} {{ ', {0}'.format(remote_vnet_cidr | join(', ')) if hostvars[inventory_hostname]['tags']['wireguard_add_remote_cidrs'] else '' }}
       {% endif %}
   loop: "{{ publickeys['results'] }}"
 
@@ -184,7 +184,7 @@
   register: process_one
 
 - name: enable ufw
-  when: (group_names | select('search','k3s') | list | count <= 0)
+  when: "'systemd' in process_one['stdout'] and (group_names | select('search','k3s') | list | count <= 0)"
   become: yes
   ufw:
     state: enabled
@@ -199,7 +199,7 @@
 
 - name: Make sure ufw is enabled
   become: yes
-  when: group_names | select('search','k3s') | list | count <= 0
+  when: "'systemd' in process_one['stdout'] and group_names | select('search','k3s') | list | count <= 0"
   ansible.builtin.systemd:
     state: started
     name: ufw
@@ -216,6 +216,7 @@
 
 - name: Sync wg conf
   become: yes
+  ignore_errors: true
   shell: wg syncconf wg0 <(wg-quick strip wg0)
   args:
     warn: no

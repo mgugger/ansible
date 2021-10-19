@@ -5,7 +5,8 @@
   args:
     warn: no
 
-# TODO: Add Ubuntu
+- include: install-coredns-on-ubuntu.yml
+  when: ansible_facts['os_family'] == "Debian"
 
 - name: Create zones directory
   become: yes
@@ -31,6 +32,7 @@
 - name: add inventory hosts to hosts file
   when: '"wireguard" in inventory_hostname'
   become: yes
+  ignore_errors: true
   blockinfile:
     dest: "/etc/coredns/hosts"
     insertafter: BOF
@@ -58,6 +60,22 @@
       *         IN  A     {{ hostvars[k3s_node]['tags']['wireguard_ip'].split("/")[0] }};
       {% endfor %}
 
+- name: set custom zone file for .k8s
+  become: yes
+  copy:
+    mode: 0644
+    owner: coredns
+    group: coredns
+    force: yes
+    dest: /etc/coredns/zones/k8s.zone
+    content: |
+      $ORIGIN k8s.
+      @	3600 IN	SOA sns.dns.icann.org. noc.dns.icann.org. 2017042745 7200 3600 1209600 3600
+        3600 IN NS a.iana-servers.net.
+        3600 IN NS b.iana-servers.net.
+
+      *         IN  A     10.0.235.70;
+
 - name: Copy configuration file
   become: yes
   copy:
@@ -77,6 +95,10 @@
           health_check 30s
         }
         cache 3600
+      }
+
+      k8s. {
+        file /etc/coredns/zones/k8s.zone
       }
 
       internal. {
@@ -104,7 +126,7 @@
     name: coredns
     enabled: yes
 
-- name: Copy nameserver for systemd-resolved for vagrant
+- name: Copy nameserver for systemd-resolved
   become: yes
   copy:
     force: yes
@@ -114,7 +136,7 @@
       [Resolve]
       DNSStubListener=no
       DNS=127.0.0.1
-      Domains=internal.
+      Domains=internal. k8s.
       FallbackDNS=9.9.9.9 1.1.1.1
 
 - name: Make sure systemd-resolved is restarted

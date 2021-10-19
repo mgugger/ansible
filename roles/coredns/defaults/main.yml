@@ -1,0 +1,6 @@
+go_arch: "amd64"
+coredns_system_group: "coredns"
+coredns_system_user: "coredns"
+coredns_version: "1.8.4"
+coredns_checksum: "aede302ae591c9747040e10dc749d144df4812bd8bb141041d3d24c6204f309d"
+coredns_dns_port: 53

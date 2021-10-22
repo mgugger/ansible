@@ -105,6 +105,10 @@
         file /etc/coredns/zones/internal.zone
       }
 
+      azure.com {
+        forward . 168.63.129.16
+      }
+
 - name: ufw allow coredns udp
   become: yes
   ufw:

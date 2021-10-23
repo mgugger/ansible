@@ -1,0 +1,9 @@
+- name: configure devops machine
+  hosts: _devops
+  roles:
+  - role: ansible-modules-bitwarden
+    tags: [ always ]
+  - role: prometheus
+    tags: [ prometheus ]
+  - role: grafana
+    tags: [ grafana ]

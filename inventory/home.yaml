@@ -5,23 +5,15 @@ home:
       tags:
         wireguard_ip: 192.168.8.1
         wireguard_add_remote_cidrs: true
-        k3s-role: agent
     raspi:
       ansible_host: 192.168.0.45
       tags:
         wireguard_ip: 192.168.8.2
         wireguard_add_remote_cidrs: true
-        k3s-role: agent
   children:
     _coredns:
       hosts:
         raspi:
-    _k3s_agent:
-      hosts:
-        desktop:
-        raspi:
-    _k3s_server:
-      hosts:
     _running:
       hosts:
         raspi:

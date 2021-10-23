@@ -77,12 +77,12 @@
       Address = {{ hostvars[inventory_hostname].tags.wireguard_ip }}
       PrivateKey = {{ wireguard_server_privatekey['content'] | b64decode | trim }}
       ListenPort = 51820
-      {% if not (group_names | select('search','k3s') | list | count > 0) %}
+      {% if (group_names | select('search','k3s') | list | count <= 0) %}
       PostUp = ufw route allow in on wg0 out on {{ ansible_default_ipv4.interface }}
       {% endif %}
       PostUp = iptables -t nat -I POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
       PostUp = ip6tables -t nat -I POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
-      {% if not (group_names | select('search','k3s') | list | count > 0) %}
+      {% if (group_names | select('search','k3s') | list | count <= 0) %}
       PreDown = ufw route delete allow in on wg0 out on {{ ansible_default_ipv4.interface }}
       {% endif %}
       PreDown = iptables -t nat -D POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE

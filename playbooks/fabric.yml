@@ -5,6 +5,13 @@
     tags: [ always ]
   - role: wireguard
     tags: [ wireguard ]
+  - role: consul
+    consul_role: client
+    tags: [ consul ]
+  - role: node-exporter
+    tags: [ node-exporter ]
+  - role: swap
+    tags: [ swap ]
 
 - name: configure wireguard server
   hosts: _wireguard
@@ -15,3 +22,10 @@
     tags: [ wireguard ]
   - role: coredns
     tags: [ coredns ]
+  - role: consul
+    consul_role: server
+    tags: [ consul ]
+  - role: node-exporter
+    tags: [ node-exporter ]
+  - role: swap
+    tags: [ swap ]

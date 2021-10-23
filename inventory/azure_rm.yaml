@@ -1,7 +1,7 @@
 plugin: azure_rm
 include_vm_resource_groups:
   - tf-connectivity
-  - tf-k3s
+  - tf-vms
 auth_source: auto
 conditional_groups:
   linux: "image.offer is defined and 'CentOS' in image.offer"

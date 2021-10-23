@@ -44,6 +44,7 @@
 
 - name: set custom zone file for .internal
   become: yes
+  when: groups._k3s_agent is defined
   copy:
     mode: 0644
     owner: coredns
@@ -97,6 +98,10 @@
         cache 3600
       }
 
+      home. {
+        forward . {{ hostvars[inventory_hostname].tags.wireguard_ip.split("/")[0] }}:8600
+      }
+
       k8s. {
         file /etc/coredns/zones/k8s.zone
       }
@@ -140,7 +145,7 @@
       [Resolve]
       DNSStubListener=no
       DNS=127.0.0.1
-      Domains=internal. k8s.
+      Domains=service.home node.home
       FallbackDNS=9.9.9.9 1.1.1.1
 
 - name: Make sure systemd-resolved is restarted

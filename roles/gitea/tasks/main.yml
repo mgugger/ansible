@@ -1,0 +1,53 @@
+---
+- name: Install package gitea from repo
+  become: yes
+  community.general.pacman:
+    name: gitea
+    state: present
+    update_cache: yes
+
+- name: ufw allow gitea tcp ports
+  become: yes
+  ufw:
+    rule: allow
+    interface: wg0
+    direction: in
+    proto: tcp
+    to_port: "3000"
+
+- name: create gitea service for consul
+  become: yes
+  copy:
+    force: yes
+    owner: consul
+    group: consul
+    dest: /etc/consul.d/gitea.json
+    content: |
+      {
+        "service":
+          {
+            "id": "gitea",
+            "name": "gitea",
+            "port": 3000,
+            "address":"",
+            "checks": [
+              {
+                "id": "gitea-health",
+                "name": "gitea health check",
+                "http": "http://localhost:3000/api/v1/version",
+                "method": "GET",
+                "interval": "30s"
+              }
+            ]
+          }
+      }
+
+- name: reload consul
+  command: consul reload
+
+- name: Make sure gitea is running
+  become: yes
+  ansible.builtin.systemd:
+    state: restarted
+    name: gitea
+    enabled: yes

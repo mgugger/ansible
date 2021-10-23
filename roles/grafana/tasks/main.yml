@@ -1,0 +1,53 @@
+---
+- name: Install package grafana from repo
+  become: yes
+  community.general.pacman:
+    name: grafana
+    state: present
+    update_cache: yes
+
+- name: ufw allow grafana tcp ports
+  become: yes
+  ufw:
+    rule: allow
+    interface: wg0
+    direction: in
+    proto: tcp
+    to_port: "3000"
+
+- name: create grafana service for consul
+  become: yes
+  copy:
+    force: yes
+    owner: consul
+    group: consul
+    dest: /etc/consul.d/grafana.json
+    content: |
+      {
+        "service":
+          {
+            "id": "grafana",
+            "name": "grafana",
+            "port": 3000,
+            "address":"",
+            "checks": [
+              {
+                "id": "grafana-health",
+                "name": "grafana health check",
+                "http": "http://localhost:3000/api/health",
+                "method": "GET",
+                "interval": "30s"
+              }
+            ]
+          }
+      }
+
+- name: reload consul
+  command: consul reload
+
+- name: Make sure grafana is running
+  become: yes
+  ansible.builtin.systemd:
+    state: restarted
+    name: grafana
+    enabled: yes

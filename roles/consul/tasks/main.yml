@@ -1,0 +1,239 @@
+---
+- name: Ensure group "consul" exists
+  become: yes
+  group:
+    name: consul
+    state: present
+
+- name: Create Consul User
+  ignore_errors: yes # User may be locked by the consul process
+  become: yes
+  user:
+    name: consul
+    home: /etc/consul.d
+    system: "yes"
+    shell: /bin/false
+    groups: 
+      - consul
+
+- name: Create a directory if it does not exist
+  become: yes
+  ansible.builtin.file:
+    path: /etc/consul.d
+    owner: consul
+    group: consul
+    state: directory
+    mode: '750'
+
+- name: Create a directory if it does not exist
+  become: yes
+  ansible.builtin.file:
+    path: /etc/consul.d/services
+    owner: consul
+    group: consul
+    state: directory
+    mode: '750'
+
+- name: Create a directory if it does not exist
+  become: yes
+  ansible.builtin.file:
+    path: /etc/systemd/system/consul.service.d
+    state: directory
+    owner: root
+    group: root
+
+- name: Create a directory if it does not exist
+  become: yes
+  ansible.builtin.file:
+    path: /opt/consul
+    owner: consul
+    group: consul
+    state: directory
+    mode: '750'
+
+- name: install consul
+  block:
+  - name: Install package consul from repo
+    become: yes
+    community.general.pacman:
+      name: consul
+      state: present
+      update_cache: yes
+
+  - name: create consul system service drop-in
+    become: yes
+    copy:
+      force: yes
+      mode: 0644
+      owner: root
+      group: root
+      dest: /etc/systemd/system/consul.service.d/drop-in.service
+      content: |
+        [Unit]
+        After=wg-quick@wg0.service
+  
+  # Download binary from github (for aarch64)
+  rescue:
+  - name: Download and unarchive consul release from github
+    when: ansible_architecture == "aarch64"
+    become: yes
+    unarchive:
+      src: "{{ CONSUL_DOWNLOAD_URL }}"
+      dest: /usr/local/bin/
+      remote_src: yes
+
+  - name: create consul system service
+    when: ansible_architecture == "aarch64"
+    become: yes
+    copy:
+      force: yes
+      mode: 0644
+      owner: root
+      group: root
+      dest: /etc/systemd/system/consul.service
+      content: |
+        [Unit]
+        Description=Consul Agent
+        Requires=network-online.target
+        After=network-online.target
+        After=wg-quick@wg0.service
+
+        [Service]
+        User=consul
+        Group=consul
+        EnvironmentFile=-/etc/default/consul
+        Restart=on-failure
+        ExecStart=/usr/local/bin/consul agent $CONSUL_FLAGS -config-dir=/etc/consul.d
+        ExecReload=/usr/bin/kill -HUP $MAINPID
+        KillSignal=SIGINT
+
+        [Install]
+        WantedBy=multi-user.target 
+
+- name: add consul config.hcl
+  become: yes
+  when: consul_role == "server"
+  copy:
+    mode: 0644
+    force: yes
+    owner: consul
+    group: consul
+    dest: /etc/consul.d/consul.hcl
+    content: |
+      node_name = "{{ inventory_hostname.split("_")[0] }}"
+      bind_addr = "{{ "{{" }} GetInterfaceIP \"wg0\" {{ "}}" }}"
+      client_addr = "0.0.0.0"
+      data_dir = "/opt/consul"
+      domain = "home"
+      datacenter = "home"
+
+      ui_config {
+        enabled = true
+      }
+
+      server = true
+      bootstrap_expect = 1
+      recursors = ["192.168.8.0"]
+
+      dns_config {
+        node_ttl = "60s"
+        service_ttl {
+          "*" = "60s"
+        }
+      }
+
+- name: add consul config.hcl
+  become: yes
+  when: consul_role == "client"
+  copy:
+    mode: 0644
+    force: yes
+    owner: consul
+    group: consul
+    dest: /etc/consul.d/consul.hcl
+    content: |
+      node_name = "{{ inventory_hostname }}"
+      bind_addr = "{{ "{{" }} GetInterfaceIP \"wg0\" {{ "}}" }}"
+      data_dir = "/opt/consul"
+      domain = "home"
+      datacenter = "home"
+
+      ui_config {
+        enabled = false
+      }
+      server = false
+      recursors = ["192.168.8.0"]
+
+      dns_config {
+        use_cache = true
+        cache_max_age = "60s"
+        node_ttl = "60s"
+        service_ttl {
+          "*" = "60s"
+        }
+      }
+
+      retry_join = ["{{ hostvars[groups._wireguard[0]].tags.wireguard_ip.split("/")[0] }}"]
+
+- name: Start consul
+  become: yes
+  ansible.builtin.systemd:
+    name: consul
+    enabled: yes
+    daemon_reload: yes
+    state: started
+
+- name: set consul ports
+  set_fact:
+    tcp_ports:
+      - 8600
+      - 8500
+      - 8301
+      - 8302
+      - 8300
+    udp_ports:
+      - 8600
+      - 8301
+      - 8302
+
+- name: ufw allow consul tcp ports
+  become: yes
+  ufw:
+    rule: allow
+    interface: wg0
+    direction: in
+    proto: tcp
+    to_port: "{{ item }}"
+  loop: "{{ tcp_ports }}"
+
+- name: ufw allow consul udp ports
+  become: yes
+  ufw:
+    rule: allow
+    interface: wg0
+    direction: in
+    proto: udp
+    to_port: "{{ item }}"
+  loop: "{{ udp_ports }}"
+
+- name: Copy nameserver for systemd-resolved
+  become: yes
+  when: consul_role == "client"
+  copy:
+    force: yes
+    mode: 0644
+    dest: /etc/systemd/resolved.conf
+    content: |
+      [Resolve]
+      DNS=127.0.0.1:8600
+      DNSSEC=false
+      Domains=service.home node.home ~home
+      FallbackDNS=9.9.9.9 1.1.1.1
+
+- name: Make sure systemd-resolved is restarted
+  become: yes
+  when: consul_role == "client"
+  ansible.builtin.systemd:
+    state: restarted
+    name: systemd-resolved
+    enabled: yes 

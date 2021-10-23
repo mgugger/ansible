@@ -1,0 +1,88 @@
+---
+- name: Install package prometheus from repo
+  become: yes
+  community.general.pacman:
+    name: prometheus
+    state: present
+    update_cache: yes
+
+- name: set prometheus config
+  become: yes
+  copy:
+    mode: 0644
+    owner: prometheus
+    group: prometheus
+    force: yes
+    dest: /etc/prometheus/prometheus.yml
+    content: |
+      global:
+        scrape_interval: 30s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+        evaluation_interval: 30s # Evaluate rules every 15 seconds. The default is every 1 minute.
+
+      # Alertmanager configuration
+      alerting:
+        alertmanagers:
+          - static_configs:
+              - targets:
+                # - alertmanager:9093
+
+      # Load rules once and periodically evaluate them according to the global 'evaluation_interval'.
+      rule_files:
+        # - "first_rules.yml"
+        # - "second_rules.yml"
+
+      # A scrape configuration containing exactly one endpoint to scrape:
+      # Here it's Prometheus itself.
+      scrape_configs:
+        # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
+        - job_name: "prometheus-node-exporter"
+          consul_sd_configs:
+          - server: 'consul.service.home:8500'
+            datacenter: 'home'
+            services: ['node-exporter']
+
+- name: create node-exporter service for consul
+  become: yes
+  copy:
+    force: yes
+    owner: consul
+    group: consul
+    dest: /etc/consul.d/prometheus.json
+    content: |
+      {
+        "service":
+          {
+            "id": "prometheus",
+            "name": "prometheus",
+            "port": 9090,
+            "address":"",
+            "checks": [
+              {
+                "id": "prometheus-health",
+                "name": "prometheus health check",
+                "http": "http://localhost:9090/-/healthy",
+                "method": "GET",
+                "interval": "30s"
+              }
+            ]
+          }
+      }
+
+- name: reload consul
+  command: consul reload
+
+- name: ufw allow prometheus tcp ports
+  become: yes
+  ufw:
+    rule: allow
+    interface: wg0
+    direction: in
+    proto: tcp
+    to_port: "9090"
+
+- name: Make sure prometheus is running
+  become: yes
+  ansible.builtin.systemd:
+    state: restarted
+    name: prometheus
+    enabled: yes

@@ -1,0 +1,120 @@
+---
+- name: Install package podman-docker from repo
+  become: yes
+  community.general.pacman:
+    name: podman-docker
+    state: present
+    update_cache: yes
+
+- name: Install drone
+  when: ansible_facts['os_family'] == "Archlinux"
+  command: yay -S drone --noconfirm
+  args:
+    warn: no
+
+- name: allow rootless docker
+  become: yes
+  ansible.posix.sysctl:
+    name: kernel.unprivileged_userns_clone
+    value: '1'
+    sysctl_set: yes
+    state: present
+    reload: yes
+
+- name: set subuid and subgid for rootless docker
+  become: yes
+  command: touch /etc/subuid /etc/subgid
+
+- name: set subuid and subgid for rootless docker for user drone
+  become: yes
+  command: usermod --add-subuids 100000-165535 --add-subgids 100000-165535 drone
+
+- name: podman migrate to propagate changes to subuid and subgid
+  become: yes
+  command: podman system migrate
+
+- name: set drone systemd drop-in
+  become: yes
+  copy:
+    mode: 0644
+    owner: root
+    group: root
+    force: yes
+    dest: /etc/systemd/system/drone.service.d/drop-in.conf
+    content: |
+      [Service]
+      EnvironmentFile=/etc/conf.d/drone
+
+- name: set drone env config
+  become: yes
+  copy:
+    mode: 0644
+    owner: root
+    group: root
+    force: no
+    dest: /etc/conf.d/drone
+    content: |
+      DRONE_GITEA_SERVER="http://gitea.service.home:3000"
+      DRONE_GITEA_CLIENT_ID="TODO"
+      DRONE_GITEA_CLIENT_SECRET="TODO"
+      DRONE_RPC_SECRET="TODO"
+      DRONE_SERVER_HOST="drone.service.home:8080"
+      DRONE_SERVER_PROTO="http"
+      DRONE_AGENTS_DISABLED=true
+      DRONE_RUNNER_LOCAL=true
+      DRONE_LOGS_DEBUG=true
+      DRONE_LOGS_TRACE=true
+      DRONE_RUNNER_NAME="default"
+      DRONE_RUNNER_CAPACITY=1
+      DRONE_USER_CREATE=username:manuel,machine:false,admin:true
+
+- name: create drone service for consul
+  become: yes
+  copy:
+    force: yes
+    owner: consul
+    group: consul
+    dest: /etc/consul.d/drone.json
+    content: |
+      {
+        "service":
+          {
+            "id": "drone",
+            "name": "drone",
+            "port": 8080,
+            "address":"",
+            "checks": [
+              {
+                "id": "drone-health",
+                "name": "drone health check",
+                "http": "http://localhost:8080/healthz",
+                "method": "GET",
+                "interval": "30s"
+              }
+            ]
+          }
+      }
+
+- name: reload consul
+  command: consul reload
+
+- name: Make sure podman-docker is running
+  become: yes
+  ansible.builtin.systemd:
+    state: restarted
+    name: podman
+    enabled: yes
+
+- name: Make sure podman-docker socket is running
+  become: yes
+  ansible.builtin.systemd:
+    state: restarted
+    name: podman.socket
+    enabled: yes
+
+- name: Make sure drone is running
+  become: yes
+  ansible.builtin.systemd:
+    state: restarted
+    name: drone
+    enabled: yes

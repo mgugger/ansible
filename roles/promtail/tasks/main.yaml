@@ -1,4 +1,8 @@
 ---
+- name: Set hostname to "{{ inventory_hostname }}"
+  become: yes
+  command: hostnamectl set-hostname {{ inventory_hostname }}
+
 - name: Install package promtail from repo
   become: yes
   community.general.pacman:
@@ -6,19 +10,24 @@
     state: present
     update_cache: yes
 
-- name: add promtail config parsers.conf
+- name: allow promtail access to systemd
+  become: yes
+  ansible.builtin.user:
+    name: promtail
+    groups: adm,promtail
+    append: yes
+
+- name: add promtail config
   become: yes
   copy:
     force: yes
-    owner: fluent-bit
-    group: fluent-bit
+    owner: promtail
+    group: promtail
     dest: /etc/loki/promtail.yaml
     content: |
       server:
         http_listen_port: 9080
         grpc_listen_port: 0
-      positions:
-        filename: /tmp/positions.yaml
       clients:
         - url: http://loki.service.home:3100/loki/api/v1/push
       scrape_configs:
@@ -77,3 +86,25 @@
 
 - name: reload consul
   command: consul reload
+
+- name: enable journald volatile storage to reduce k3s load on the disk
+  become: yes
+  ansible.builtin.lineinfile:
+    path: /etc/systemd/journald.conf
+    insertafter: '^[Journal]'
+    regexp: '^Storage='
+    line: Storage=volatile
+
+- name: enable journald volatile storage to reduce k3s load on the disk
+  become: yes
+  ansible.builtin.lineinfile:
+    path: /etc/systemd/journald.conf
+    regexp: '^#Storage'
+    state: absent
+
+- name: Reload systemd-journal
+  become: yes
+  ansible.builtin.systemd:
+    name: systemd-journald
+    daemon_reload: yes
+    state: restarted

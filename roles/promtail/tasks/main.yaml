@@ -1,0 +1,79 @@
+---
+- name: Install package promtail from repo
+  become: yes
+  community.general.pacman:
+    name: promtail
+    state: present
+    update_cache: yes
+
+- name: add promtail config parsers.conf
+  become: yes
+  copy:
+    force: yes
+    owner: fluent-bit
+    group: fluent-bit
+    dest: /etc/loki/promtail.yaml
+    content: |
+      server:
+        http_listen_port: 9080
+        grpc_listen_port: 0
+      positions:
+        filename: /tmp/positions.yaml
+      clients:
+        - url: http://loki.service.home:3100/loki/api/v1/push
+      scrape_configs:
+      - job_name: journal
+        journal:
+          json: false
+          max_age: 12h
+          path: /run/log/journal
+          labels:
+            job: systemd-journal
+        relabel_configs:
+          - source_labels: ['__journal__systemd_unit']
+            target_label: 'unit'
+          - source_labels: ['__journal__hostname']
+            target_label: 'hostname'
+        pipeline_stages:
+        - regex:
+            expression: '^\[(?P<app>[^ ]+) (?P<method>[^ ]+)] IN=(?P<IN>.+)OUT=(?P<OUT>.+)(MAC=(?P<MAC>[\S]+))* SRC=(?P<SRC>[\S]+) DST=(?P<DST>[\S]+).*PROTO=(?P<PROTO>[\S]+) SPT=(?P<SPT>[\S]+) DPT=(?P<DPT>[\S]+)'
+        - labels:
+            app:
+            method:
+
+- name: Make sure promtail is running
+  become: yes
+  ansible.builtin.systemd:
+    state: restarted
+    name: promtail
+    enabled: yes
+
+- name: create consul entry
+  become: yes
+  copy:
+    force: yes
+    owner: consul
+    group: consul
+    dest: /etc/consul.d/promtail.json
+    content: |
+      {
+        "service":
+          {
+            "id": "promtail",
+            "name": "promtail",
+            "port": 9080,
+            "address":"",
+            "checks": [
+              {
+                "id": "promtail-health",
+                "name": "promtail health check",
+                "http": "http://localhost:9080/ready",
+                "method": "GET",
+                "interval": "30s"
+              }
+            ]
+          }
+        }     
+
+- name: reload consul
+  command: consul reload

@@ -98,20 +98,6 @@
 - name: reload consul
   command: consul reload
 
-- name: Make sure podman-docker is running
-  become: yes
-  ansible.builtin.systemd:
-    state: restarted
-    name: podman
-    enabled: yes
-
-- name: Make sure podman-docker socket is running
-  become: yes
-  ansible.builtin.systemd:
-    state: restarted
-    name: podman.socket
-    enabled: yes
-
 - name: Make sure drone is running
   become: yes
   ansible.builtin.systemd:

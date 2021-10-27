@@ -12,6 +12,8 @@
     tags: [ node-exporter ]
   - role: swap
     tags: [ swap ]
+  - role: promtail
+    tags: [ promtail ]
 
 - name: configure wireguard server
   hosts: _wireguard
@@ -29,3 +31,5 @@
     tags: [ node-exporter ]
   - role: swap
     tags: [ swap ]
+  - role: promtail
+    tags: [ promtail ]

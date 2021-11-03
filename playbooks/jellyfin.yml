@@ -1,0 +1,4 @@
+- name: configure jellyfin node
+  hosts: raspi
+  roles:
+  - jellyfin

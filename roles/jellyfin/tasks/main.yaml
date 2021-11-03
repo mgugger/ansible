@@ -1,0 +1,43 @@
+---
+- name: Install jellyfin
+  when: ansible_facts['os_family'] == "Archlinux"
+  command: yay -S jellyfin-bin --noconfirm
+  args:
+    warn: no
+
+- name: create jellyfin service for consul
+  become: yes
+  copy:
+    force: yes
+    owner: consul
+    group: consul
+    dest: /etc/consul.d/jellyfin.json
+    content: |
+      {
+        "service":
+          {
+            "id": "jellyfin",
+            "name": "jellyfin",
+            "port": 8096,
+            "address":"",
+            "checks": [
+              {
+                "id": "jellyfin-health",
+                "name": "jellyfin health check",
+                "http": "http://localhost:8096/health",
+                "method": "GET",
+                "interval": "30s"
+              }
+            ]
+          }
+      }
+
+- name: reload consul
+  command: consul reload
+
+- name: Make sure jellyfin is running
+  become: yes
+  ansible.builtin.systemd:
+    state: restarted
+    name: jellyfin
+    enabled: yes

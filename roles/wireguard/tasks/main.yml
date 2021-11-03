@@ -134,7 +134,6 @@
   loop: "{{ publickeys['results'] }}"
 
 - name: add mobile peers to server
-  when: '"_wireguard" in group_names'
   ignore_errors: true
   become: yes
   blockinfile:

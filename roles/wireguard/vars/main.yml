@@ -6,5 +6,7 @@ remote_vnet_cidr:
   - 10.0.235.0/24
 
 # TODO: Make as list
-wireguard_mobile_ip: "192.168.8.254"
-wireguard_mobile_publickey: "{{ lookup('bitwarden', 'wireguard', field='mobile1_publickey', custom_field=true) }}"
+wireguard_mobile:
+  internal_ip: "192.168.8.254"
+  external_ip: "192.168.8.253"
+  publickey: "{{ lookup('bitwarden', 'wireguard', field='mobile1_publickey', custom_field=true) }}"

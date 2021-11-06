@@ -133,17 +133,30 @@
       {% endif %}
   loop: "{{ publickeys['results'] }}"
 
-- name: add mobile peers to server
+- name: add internal mobile peers to server
   ignore_errors: true
   become: yes
   blockinfile:
     dest: "/etc/wireguard/wg0.conf"
     state: present
-    marker: "# mobile1 ANSIBLE MANAGED WG PEER"
+    marker: "# mobile1 internal ANSIBLE MANAGED WG PEER"
     block: |
       [Peer]
-      AllowedIPs = {{ wireguard_mobile_ip }}
-      PublicKey = {{ wireguard_mobile_publickey }}
+      AllowedIPs = {{ wireguard_mobile.internal_ip }}
+      PublicKey = {{ wireguard_mobile.publickey }}
+
+- name: add external mobile peers to server
+  ignore_errors: true
+  when: '"_wireguard" in group_names'
+  become: yes
+  blockinfile:
+    dest: "/etc/wireguard/wg0.conf"
+    state: present
+    marker: "# mobile1 external ANSIBLE MANAGED WG PEER"
+    block: |
+      [Peer]
+      AllowedIPs = {{ wireguard_mobile.external_ip }}
+      PublicKey = {{ wireguard_mobile.publickey }}
 
 - name: allow ipv4 forward
   become: yes

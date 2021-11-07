@@ -67,7 +67,7 @@
       mode: 0644
       owner: root
       group: root
-      dest: /etc/systemd/system/consul.service.d/drop-in.service
+      dest: /etc/systemd/system/consul.service.d/drop-in.conf
       content: |
         [Unit]
         After=wg-quick@wg0.service

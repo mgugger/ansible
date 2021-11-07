@@ -5,6 +5,15 @@
   args:
     warn: no
 
+- name: ufw allow jellyfin tcp ports
+  become: yes
+  ufw:
+    rule: allow
+    # Allow on all interfaces for chromecast access without wg
+    direction: in
+    proto: tcp
+    to_port: "8096"
+
 - name: create jellyfin service for consul
   become: yes
   copy:

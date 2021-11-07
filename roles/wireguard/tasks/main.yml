@@ -144,6 +144,7 @@
       [Peer]
       AllowedIPs = {{ wireguard_mobile.internal_ip }}
       PublicKey = {{ wireguard_mobile.publickey }}
+      Endpoint = {{ wireguard_mobile.internal_endpoint }}:51820
 
 - name: add external mobile peers to server
   ignore_errors: true

@@ -1,0 +1,4 @@
+- name: configure desktop node
+  hosts: desktop
+  roles:
+  - rclone

@@ -1,0 +1,71 @@
+---
+- name: install rclone
+  when: ansible_facts['os_family'] == "Archlinux"
+  become: yes
+  community.general.pacman:
+    name: rclone
+    state: present
+
+- name: Ensure group "rclone" exists
+  become: yes
+  group:
+    name: rclone
+    state: present
+
+- name: Create rclone User
+  ignore_errors: yes # User may be locked by the consul process
+  become: yes
+  user:
+    name: rclone
+    home: /etc/rclone.d
+    system: "yes"
+    shell: /bin/false
+    groups: 
+      - rclone
+
+- name: Create a directory if it does not exist
+  become: yes
+  ansible.builtin.file:
+    path: /etc/rclone.d
+    owner: rclone
+    group: rclone
+    state: directory
+    mode: '750'
+
+- name: fuse allow other user
+  become: yes
+  ansible.builtin.lineinfile:
+    path: /etc/fuse.conf
+    line: user_allow_other
+
+- name: Creating rclone forking systemd
+  become: yes
+  copy:
+    dest: "/etc/systemd/system/rclone-mount@.service"
+    force: yes
+    group: root
+    owner: root
+    content: |
+      # Usage:
+      # To unmount drive use
+      # systemctl stop rclone-mount@<rclone-remote>.service
+      # To mount use:
+      # systemctl start rclone-mount@<rclone-remote>.service
+      # To disable mount on boot use:
+      # systemctl disable rclone-mount@<rclone-remote>.service
+
+      [Unit]
+      Description=rclone fuse mount for %i
+      AssertPathIsDirectory=/mnt/%i
+      After=network-online.target
+
+      [Service]
+      Environment="RCLONE_CONFIG=/etc/rclone.d/rclone.conf"
+      Type=notify
+      User=rclone
+      Group=rclone
+      ExecStart=/usr/bin/rclone mount %i: /mnt/%i --vfs-cache-mode full -v --allow-other 
+      ExecStop=/bin/fusermount -uz /mnt/%i
+
+      [Install]
+      WantedBy=multi-user.target

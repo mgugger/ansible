@@ -143,7 +143,7 @@
     block: |
       [Peer]
       AllowedIPs = {{ wireguard_mobile.internal_ip }}
-      PublicKey = {{ wireguard_mobile.publickey }}
+      PublicKey = {{ wireguard_mobile.internal_publickey }}
       Endpoint = {{ wireguard_mobile.internal_endpoint }}:51820
 
 - name: add external mobile peers to server
@@ -157,7 +157,7 @@
     block: |
       [Peer]
       AllowedIPs = {{ wireguard_mobile.external_ip }}
-      PublicKey = {{ wireguard_mobile.publickey }}
+      PublicKey = {{ wireguard_mobile.external_publickey }}
 
 - name: allow ipv4 forward
   become: yes

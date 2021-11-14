@@ -2,9 +2,11 @@
 - name: Check device name {{ install_device_name }} exists
   stat: "path={{ install_device_name }}"
   register: device
+  delegate_to: "{{ target_ip }}"
   failed_when: not device.stat.exists
 
 - name: Check if partitions are mounted
+  delegate_to: "{{ target_ip }}"
   block:
     - command: mountpoint -q /mnt
       register: root_mountpoint
@@ -17,11 +19,13 @@
         boot_mounted: "{{ boot_mountpoint.rc == 0 }}"
 
 - name: Label {{ install_device_name }} as mbr
+  delegate_to: "{{ target_ip }}"
   community.general.parted:
       device: "{{ install_device_name }}"
       label: gpt
 
 - name: Create boot partition with a size of 512MB
+  delegate_to: "{{ target_ip }}"
   community.general.parted:
     device: "{{ install_device_name }}"
     number: 1
@@ -31,6 +35,7 @@
     fs_type: fat32
 
 - name: Create btrfs partition
+  delegate_to: "{{ target_ip }}"
   community.general.parted:
     device: "{{ install_device_name }}"
     number: 2
@@ -41,6 +46,7 @@
 
 - name: Format efi boot partition
   when: not boot_mounted
+  delegate_to: "{{ target_ip }}"
   filesystem: 
     dev: "{{ install_device_name }}1"
     fstype: vfat
@@ -48,6 +54,7 @@
 
 - name: Format root partition with btrfs
   when: not root_mounted
+  delegate_to: "{{ target_ip }}"
   filesystem: 
     dev: "{{ install_device_name }}2"
     fstype: btrfs
@@ -55,6 +62,7 @@
 
 - name: Mount Root partition
   when: not root_mounted
+  delegate_to: "{{ target_ip }}"
   mount:
     path: "/mnt"
     src: "{{ install_device_name }}2"
@@ -63,51 +71,61 @@
     opts: compress=zstd:3,noatime
 
 - name: Create a directory if it does not exist
+  delegate_to: "{{ target_ip }}"
   ansible.builtin.file:
-    path: /mnt/boot
+    path: /mnt/efi
     state: directory
 
 - name: Mount boot partition
+  delegate_to: "{{ target_ip }}"
   when: not boot_mounted
   mount:
-    path: "/mnt/boot"
+    path: "/mnt/efi"
     src: "{{ install_device_name }}1"
     state: mounted
     fstype: vfat
 
 - name: Run pacstrap base system
+  delegate_to: "{{ target_ip }}"
   command: pacstrap /mnt base linux linux-firmware
 
 - name: Remove fstab
+  delegate_to: "{{ target_ip }}"
   ansible.builtin.file:
     path: /mnt/etc/fstab
     state: absent
 
 - name: Run genfstab
+  delegate_to: "{{ target_ip }}"
   command: genfstab -U /mnt >> /mnt/etc/fstab
 
 - name: Set hostname to archlinux
+  delegate_to: "{{ target_ip }}"
   copy: 
     dest: /mnt/etc/hostname
     content: archlinux
 
 - name: use locale en_US.UTF-8
+  delegate_to: "{{ target_ip }}"
   ansible.builtin.lineinfile:
-    path: /etc/locale.gen
+    path: /mnt/etc/locale.gen
     regexp: '^en_US.UTF-8 UTF-8'
     line: en_US.UTF-8 UTF-8
 
 - name: Set language to en_US.UTF-8 UTF-8"
+  delegate_to: "{{ target_ip }}"
   copy: 
     dest: /mnt/etc/locale.conf
     content: LANG=en_US.UTF-8
 
 - name: Set keymap to de_CH-latin1
+  delegate_to: "{{ target_ip }}"
   copy: 
     dest: /mnt/etc/vconsole.conf
     content: KEYMAP=de_CH-latin1
 
 - name: set hosts
+  delegate_to: "{{ target_ip }}"
   copy:
     dest: /mnt/etc/hosts
     content: |
@@ -115,13 +133,8 @@
       ::1		localhost
       127.0.1.1	archlinux.localdomain	archlinux
 
-- name: Load hyper-v modules in the kernel
-  ansible.builtin.lineinfile:
-    path: /mnt/etc/mkinitcpio.conf
-    regexp: MODULES=(.*)
-    line: MODULES=(hv_storvsc hv_vmbus)
-
-- name: Configure System and create grub bootloader
+- name: Configure System and create refind bootloader
+  delegate_to: "{{ target_ip }}"
   ignore_errors: true
   command:
     argv:
@@ -134,14 +147,31 @@
         hwclock --systohc
         locale-gen
         echo -e "root\nroot" | passwd
-        pacman -Sy --noconfirm openssh efibootmgr grub dhcpcd nano python sudo
+        pacman -Sy --noconfirm openssh efibootmgr refind dhcpcd nano python sudo iwd
         systemctl enable sshd
         systemctl enable dhcpcd       
         mkinitcpio -P || true
-        grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
-        grub-mkconfig -o /boot/grub/grub.cfg
+        refind-install
 
-- name: Add admin user
+- name: get UUID
+  delegate_to: "{{ target_ip }}"
+  shell: "blkid | grep {{ install_device_name }}2 | awk -F : '{print \"blkid -s UUID -o value \"$1}' |sh"
+  register: UUID_value
+
+- name: set refind setting because incorrect settings due to arch-chroot 
+  delegate_to: "{{ target_ip }}"
+  copy:
+    owner: root
+    group: root
+    force: yes
+    dest: /mnt/boot/refind_linux.conf
+    content: |
+      "Boot using default options"     "root=UUID={{ UUID_value['stdout'] }} rw add_efi_memmap initrd=boot\initramfs-linux.img"
+      "Boot using fallback initramfs"  "root=UUID={{ UUID_value['stdout'] }} rw add_efi_memmap initrd=boot\initramfs-linux-fallback.img"
+      "Boot to terminal"               "root=UUID={{ UUID_value['stdout'] }} rw add_efi_memmap initrd=boot\initramfs-linux.img systemd.unit=multi-user.target"
+
+- name: Add user
+  delegate_to: "{{ target_ip }}"
   command:
     argv:
       - /usr/bin/arch-chroot
@@ -149,12 +179,13 @@
       - /bin/bash
       - -c
       - |
-        useradd -m admin
-        echo -e "admin\nadmin" | passwd admin
-        gpasswd -a admin wheel
+        useradd -m {{ username }}
+        echo -e "{{ ansible_ssh_pass }}\n{{ ansible_ssh_pass }}" | passwd {{ username }}
+        gpasswd -a {{ username }} wheel
         
 - name: allow admin user passwordless sudo
+  delegate_to: "{{ target_ip }}"
   ansible.builtin.lineinfile:
     path: /mnt/etc/sudoers
-    regexp: '^admin ALL=(ALL:ALL) NOPASSWD:ALL'
-    line: admin ALL=(ALL:ALL) NOPASSWD:ALL
+    regexp: '^{{ username }} ALL=(ALL:ALL) NOPASSWD:ALL'
+    line: "{{ username }} ALL=(ALL:ALL) NOPASSWD:ALL"

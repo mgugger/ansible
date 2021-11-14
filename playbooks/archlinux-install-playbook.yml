@@ -1,17 +1,21 @@
 ---
 - name: Install Archlinux
-  hosts: all
+  hosts: localhost
+  gather_facts: no
   roles:
   - archlinux-install
   vars_prompt:
     - name: username
-      prompt: "Enter username for ssh"
+      prompt: "Enter username to use on machine"
       private: no
     - name: password
-      prompt: "Enter password for ssh"
+      prompt: "Enter password for root ssh"
+    - name: target_ip
+      prompt: "Enter target ip of machine"
+      private: no
   vars:
     ansible_connection: ssh
-    ansible_user: "{{ username }}"
+    ansible_user: "root"
     ansible_ssh_pass: "{{ password }}"
   vars_files:
-    - ./vars/main.yml
+    - ./vars/archlinux-install.yml

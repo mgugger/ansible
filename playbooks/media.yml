@@ -1,4 +1,7 @@
-- name: configure jellyfin node
+- name: configure media (always-on) node
   hosts: raspi
   roles:
-  - jellyfin
+  - role: jellyfin
+    tags: [ jellyfin ]
+  - role: ansible-semaphore
+    tags: [ ansible-semaphore ]

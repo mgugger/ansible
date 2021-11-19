@@ -1,0 +1,120 @@
+---
+- name: Create the ansible-semaphore group
+  become: yes
+  group:
+    name: ansible-semaphore
+    state: present
+    system: true
+    
+- name: Create the ansible-semaphore user
+  become: yes
+  user:
+    name: ansible-semaphore
+    groups: 
+    - ansible-semaphore
+    - users
+    append: true
+    shell: /usr/sbin/nologin
+    system: true
+    createhome: false
+    home: /mnt/data/ansible-semaphore
+
+- name: Create a directory if it does not exist
+  become: yes
+  ansible.builtin.file:
+    path: /mnt/data/ansible-semaphore
+    recurse: yes
+    state: directory
+    owner: ansible-semaphore
+    group: ansible-semaphore
+
+- name: Download and unarchive consul release from github
+  when: ansible_architecture == "aarch64"
+  become: yes
+  unarchive:
+    owner: ansible-semaphore
+    group: ansible-semaphore
+    src: "{{ AARCH64_DOWNLOAD_URL }}"
+    dest: /mnt/data/ansible-semaphore
+    remote_src: yes
+
+- name: Download and unarchive consul release from github
+  when: ansible_architecture == "x86_64"
+  unarchive:
+    src: "{{ AMD64_DOWNLOAD_URL }}"
+    dest: /mnt/data/ansible-semaphore
+    remote_src: yes
+
+- name: ansible-semaphore systemd service file
+  become: yes
+  copy:
+    owner: root
+    group: root
+    mode: 0644
+    force: yes
+    dest: /etc/systemd/system/ansible-semaphore.service
+    content: |
+      [Unit]
+      Description=Semaphore Ansible
+      Documentation=https://github.com/ansible-semaphore/semaphore
+      Wants=network-online.target
+      After=network-online.target
+      [Service]
+      Type=simple
+      NoNewPrivileges=true
+      WorkingDirectory=/mnt/data/ansible-semaphore
+      User=ansible-semaphore
+      Group=ansible-semaphore
+      ExecReload=/bin/kill -HUP $MAINPID
+      ExecStart=/mnt/data/ansible-semaphore/semaphore service --config=/mnt/data/ansible-semaphore/config.json
+      SyslogIdentifier=semaphore
+      Restart=always
+      [Install]
+      WantedBy=multi-user.target
+
+# needs to run ./semaphore setup first
+- name: Make sure ansible-semaphore is started
+  become: yes
+  ansible.builtin.systemd:
+    state: restarted
+    name: ansible-semaphore
+    enabled: yes
+
+- name: ufw allow ansible-semaphore tcp ports
+  become: yes
+  ufw:
+    rule: allow
+    interface: wg0
+    direction: in
+    proto: tcp
+    to_port: "4000"
+
+- name: create ansible-semaphore service for consul
+  become: yes
+  copy:
+    force: yes
+    owner: consul
+    group: consul
+    dest: /etc/consul.d/ansible-semaphore.json
+    content: |
+      {
+        "service":
+          {
+            "id": "semaphore",
+            "name": "semaphore",
+            "port": 4000,
+            "address":"",
+            "checks": [
+              {
+                "id": "semaphore-health",
+                "name": "semaphore health check",
+                "http": "http://localhost:4000/api/ping",
+                "method": "GET",
+                "interval": "30s"
+              }
+            ]
+          }
+      }
+
+- name: reload consul
+  command: consul reload

@@ -14,6 +14,8 @@
     tags: [ swap ]
   - role: promtail
     tags: [ promtail ]
+  - role: restic
+    tags: [ restic ]
 
 - name: configure wireguard server
   hosts: _wireguard
@@ -33,3 +35,5 @@
     tags: [ swap ]
   - role: promtail
     tags: [ promtail ]
+  - role: restic
+    tags: [ restic ]

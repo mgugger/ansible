@@ -1,4 +1,11 @@
 ---
+- name: Install package ansible from repo
+  become: yes
+  community.general.pacman:
+    name: ansible
+    state: present
+    update_cache: yes
+
 - name: Create the ansible-semaphore group
   become: yes
   group:

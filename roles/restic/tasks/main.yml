@@ -1,0 +1,39 @@
+---
+- name: install restic
+  when: ansible_facts['os_family'] == "Archlinux"
+  become: yes
+  community.general.pacman:
+    name: restic
+    state: present
+
+- name: Ensure group "restic" exists
+  become: yes
+  group:
+    name: restic
+    state: present
+
+- name: Create restic User
+  ignore_errors: yes # User may be locked by the consul process
+  become: yes
+  user:
+    name: restic
+    home: /etc/restic.d
+    system: "yes"
+    shell: /bin/false
+    groups: 
+      - restic
+
+- name: Create a directory if it does not exist
+  become: yes
+  ansible.builtin.file:
+    path: /etc/restic.d
+    owner: restic
+    group: restic
+    state: directory
+    mode: '750'
+
+- name: Set cap_sys_chroot+ep on /bin/restic
+  community.general.capabilities:
+    path: /bin/restic
+    capability: cap_dac_read_search=+ep
+    state: present

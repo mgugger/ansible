@@ -1,5 +1,6 @@
 - name: Update VMs
   hosts: all
+  gather_facts: no
   tasks:
   - name: pacman -Syu
     when: ansible_facts['os_family'] == "Archlinux"

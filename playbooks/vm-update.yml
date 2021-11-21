@@ -1,0 +1,14 @@
+- name: Update VMs
+  hosts: all
+  tasks:
+  - name: pacman -Syu
+    when: ansible_facts['os_family'] == "Archlinux"
+    community.general.pacman:
+      update_cache: yes
+      upgrade: yes
+
+  - name: Update aur packages
+    when: ansible_facts['os_family'] == "Archlinux"
+    command: yay -Syu --aur --noconfirm
+    args:
+      warn: no

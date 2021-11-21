@@ -78,14 +78,8 @@
       PrivateKey = {{ wireguard_server_privatekey['content'] | b64decode | trim }}
       ListenPort = 51820
       MTU = 1400
-      {% if (group_names | select('search','k3s') | list | count <= 0) %}
-      PostUp = ufw route allow in on wg0 out on {{ ansible_default_ipv4.interface }}
-      {% endif %}
       PostUp = iptables -t nat -I POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
       PostUp = ip6tables -t nat -I POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
-      {% if (group_names | select('search','k3s') | list | count <= 0) %}
-      PreDown = ufw route delete allow in on wg0 out on {{ ansible_default_ipv4.interface }}
-      {% endif %}
       PreDown = iptables -t nat -D POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
       PreDown = ip6tables -t nat -D POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
 
@@ -199,12 +193,12 @@
   command: ps -p 1
   register: process_one
 
-- name: enable ufw
-  when: "'systemd' in process_one['stdout'] and (group_names | select('search','k3s') | list | count <= 0)"
-  become: yes
-  ufw:
-    state: enabled
-    policy: deny
+# - name: enable ufw
+#   when: "'systemd' in process_one['stdout'] and (group_names | select('search','k3s') | list | count <= 0)"
+#   become: yes
+#   ufw:
+#     state: enabled
+#     policy: deny
 
 - name: allow forwarding from eth0 to wg on server
   when: '"wireguard" in group_names and (group_names | select("search","k3s") | list | count <= 0)'
@@ -213,13 +207,13 @@
     rule: allow
     route: yes
 
-- name: Make sure ufw is enabled
-  become: yes
-  when: "'systemd' in process_one['stdout'] and group_names | select('search','k3s') | list | count <= 0"
-  ansible.builtin.systemd:
-    state: started
-    name: ufw
-    enabled: yes
+# - name: Make sure ufw is enabled
+#   become: yes
+#   when: "'systemd' in process_one['stdout'] and group_names | select('search','k3s') | list | count <= 0"
+#   ansible.builtin.systemd:
+#     state: started
+#     name: ufw
+#     enabled: yes
 
 - name: Make sure wireguard is running
   become: yes

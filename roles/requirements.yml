@@ -1,8 +1,0 @@
----
-collections:
-- community.kubernetes
-- community.general
-- ansible.windows
-- community.windows
-- ansible.posix
-- ansible.netcommon

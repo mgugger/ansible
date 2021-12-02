@@ -42,6 +42,30 @@
       {{ hostvars[item].tags.wireguard_ip.split("/")[0] }} {{ hostvars[item].inventory_hostname }}
   loop: "{{ groups.all }}"
 
+- name: set custom zone file for gugger.cloud
+  become: yes
+  copy:
+    mode: 0644
+    owner: coredns
+    group: coredns
+    force: yes
+    dest: /etc/coredns/zones/gugger.cloud.zone
+    content: |
+      $ORIGIN gugger.cloud.
+      $TTL 86400
+      @	IN	SOA	ns1.gugger.cloud.	hostmaster.gugger.cloud. (
+          2021052301 ; serial
+          21600      ; refresh after 6 hours
+          3600       ; retry after 1 hour
+          604800     ; expire after 1 week
+          86400 )    ; minimum TTL of 1 day
+      ;
+      ;
+        IN	NS	ns1.gugger.cloud.
+        IN	NS	ns2.gugger.cloud.
+      ns1	IN	A	20.199.182.92
+      ns2	IN	A	20.199.182.92
+
 - name: set custom zone file for .internal
   become: yes
   when: groups._k3s_agent is defined
@@ -87,6 +111,13 @@
     dest: /etc/coredns/Corefile
     content: |  
       . {
+        health
+        acl {
+          allow net 192.168.0.0/16 10.0.0.0/8 172.16.0.0/12 127.0.0.1
+          block
+        }
+        prometheus 0.0.0.0:9153
+
         hosts /etc/coredns/hosts {
           fallthrough
         }
@@ -98,19 +129,49 @@
         cache 3600
       }
 
+      gugger.cloud. {
+        file /etc/coredns/zones/gugger.cloud.zone
+        prometheus 0.0.0.0:9153
+        log
+      }
+
       home. {
+        acl {
+          allow net 192.168.0.0/16 10.0.0.0/8 172.16.0.0/12 127.0.0.1
+          block
+        }
+        prometheus 0.0.0.0:9153
+
         forward . {{ hostvars[inventory_hostname].tags.wireguard_ip.split("/")[0] }}:8600
       }
 
       k8s. {
+        acl {
+          allow net 192.168.0.0/16 10.0.0.0/8 172.16.0.0/12 127.0.0.1
+          block
+        }
+        prometheus 0.0.0.0:9153
+
         file /etc/coredns/zones/k8s.zone
       }
 
       internal. {
+        acl {
+          allow net 192.168.0.0/16 10.0.0.0/8 172.16.0.0/12 127.0.0.1
+          block
+        }
+        prometheus 0.0.0.0:9153
+
         file /etc/coredns/zones/internal.zone
       }
 
       azure.com {
+        acl {
+          allow net 192.168.0.0/16 10.0.0.0/8 172.16.0.0/12 127.0.0.1
+          block
+        }
+        prometheus 0.0.0.0:9153
+
         forward . 168.63.129.16
       }
 
@@ -127,6 +188,15 @@
     rule: allow
     port: 53
     proto: tcp
+
+- name: ufw allow coredns metrics tcp ports
+  become: yes
+  ufw:
+    rule: allow
+    interface: wg0
+    direction: in
+    proto: tcp
+    to_port: "9153"
 
 - name: Make sure coredns is running
   become: yes
@@ -153,4 +223,34 @@
   ansible.builtin.systemd:
     state: restarted
     name: systemd-resolved
-    enabled: yes 
+    enabled: yes
+
+- name: create coredns service for consul
+  become: yes
+  copy:
+    force: yes
+    owner: consul
+    group: consul
+    dest: /etc/consul.d/coredns.json
+    content: |
+      {
+        "service":
+          {
+            "id": "coredns",
+            "name": "coredns",
+            "port": 9153,
+            "address":"",
+            "checks": [
+              {
+                "id": "coredns-health",
+                "name": "coredns health check",
+                "http": "http://localhost:8080/health",
+                "method": "GET",
+                "interval": "30s"
+              }
+            ]
+          }
+      }
+
+- name: reload consul
+  command: consul reload

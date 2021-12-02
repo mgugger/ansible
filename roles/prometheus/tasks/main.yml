@@ -40,8 +40,13 @@
           - server: 'consul.service.home:8500'
             datacenter: 'home'
             services: ['node-exporter']
+        - job_name: "prometheus-coredns"
+          consul_sd_configs:
+          - server: 'consul.service.home:8500'
+            datacenter: 'home'
+            services: ['coredns']
 
-- name: create node-exporter service for consul
+- name: create prometheus service for consul
   become: yes
   copy:
     force: yes

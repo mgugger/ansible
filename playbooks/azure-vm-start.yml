@@ -1,0 +1,10 @@
+- name: Start Stop Azure VMs
+  hosts: azure
+  connection: local
+  tasks:
+  - name: Start / Stop virtual machine
+    delegate_to: localhost
+    azure_rm_virtualmachine:
+      resource_group: "{{ resource_group }}"
+      name: "{{ name }}"
+      allocated: "yes"

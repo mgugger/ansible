@@ -11,6 +11,5 @@
   - name: Update aur packages
     when: ansible_facts['os_family'] == "Archlinux"
     command: yay -Syu --aur --noconfirm
-    become: yes
     args:
       warn: no

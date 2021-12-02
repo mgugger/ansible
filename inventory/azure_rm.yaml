@@ -4,8 +4,6 @@ include_vm_resource_groups:
   - tf-vms
 auth_source: auto
 conditional_groups:
-  linux: "image.offer is defined and 'CentOS' in image.offer"
-  windows: "image.offer is defined and 'WindowsServer' in image.offer"
   azure: true
 default_host_filters:
   - "provisioning_state != \"succeeded\""

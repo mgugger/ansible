@@ -1,0 +1,5 @@
+- name: configure guacamole node
+  hosts: guacamole
+  roles:
+  - role: guacamole
+    tags: [ guacamole ]

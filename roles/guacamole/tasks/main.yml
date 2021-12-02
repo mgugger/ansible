@@ -1,0 +1,13 @@
+---
+- name: Update aur packages
+  when: ansible_facts['os_family'] == "Archlinux"
+  command: yay -S guacamole-server --noconfirm
+  args:
+    warn: no
+
+- name: Reload guacd
+  become: yes
+  ansible.builtin.systemd:
+    name: guacd
+    daemon_reload: yes
+    state: restarted

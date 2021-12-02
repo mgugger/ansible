@@ -1,0 +1,45 @@
+---
+- name: Install package vault from repo
+  become: yes
+  community.general.pacman:
+    name: vault
+    state: present
+    update_cache: yes
+
+- name: create vault entry
+  become: yes
+  copy:
+    force: yes
+    owner: consul
+    group: consul
+    dest: /etc/consul.d/vault.json
+    content: |
+      {
+        "service":
+          {
+            "id": "vault",
+            "name": "vault",
+            "port": 8200,
+            "address":"",
+            "checks": [
+              {
+                "id": "vault-health",
+                "name": "vault health check",
+                "http": "http://localhost:8200/sys/health",
+                "method": "GET",
+                "interval": "30s"
+              }
+            ]
+          }
+        }
+
+- name: reload consul
+  command: consul reload
+
+- name: Reload vault
+  become: yes
+  ansible.builtin.systemd:
+    name: vault
+    enabled: yes
+    daemon_reload: yes
+    state: restarted

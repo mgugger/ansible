@@ -33,6 +33,7 @@
     mode: '750'
 
 - name: Set cap_sys_chroot+ep on /bin/restic
+  become: yes
   community.general.capabilities:
     path: /bin/restic
     capability: cap_dac_read_search=+ep

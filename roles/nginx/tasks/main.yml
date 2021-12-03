@@ -94,7 +94,7 @@
     force: yes
     dest: /etc/conf.d/nginx-prometheus-exporter
     content: |
-      NGINX_EXPORTER_ARGS="-nginx.scrape-uri http://127.0.0.1:81/metrics"
+      NGINX_EXPORTER_ARGS="-nginx.scrape-uri http://localhost:81/metrics"
 
 - name: ufw allow prometheus nginx exporter tcp ports
   become: yes

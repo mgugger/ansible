@@ -45,6 +45,11 @@
           - server: 'consul.service.home:8500'
             datacenter: 'home'
             services: ['coredns']
+        - job_name: "prometheus-nginx"
+          consul_sd_configs:
+          - server: 'consul.service.home:8500'
+            datacenter: 'home'
+            services: ['nginx']
 
 - name: create prometheus service for consul
   become: yes

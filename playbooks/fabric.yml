@@ -37,3 +37,5 @@
     tags: [ promtail ]
   - role: restic
     tags: [ restic ]
+  - role: nginx
+    tags: [ nginx ]

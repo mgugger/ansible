@@ -66,6 +66,9 @@
       ns1	IN	A	20.199.182.92
       ns2	IN	A	20.199.182.92
 
+      manuel IN A 20.199.182.92
+      www    IN A 20.199.182.92
+
 - name: set custom zone file for .internal
   become: yes
   when: groups._k3s_agent is defined

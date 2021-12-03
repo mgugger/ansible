@@ -1,0 +1,260 @@
+---
+- name: Install package nginx from repo
+  become: yes
+  community.general.pacman:
+    name: 
+      - nginx-mainline
+      - certbot
+      - certbot-nginx
+      - nginx-prometheus-exporter
+    state: present
+    update_cache: yes
+
+- name: Create a directory if it does not exist
+  become: yes
+  ansible.builtin.file:
+    path: /etc/nginx/sites-available
+    state: directory
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create a directory if it does not exist
+  become: yes
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled
+    state: directory
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: set nginx config
+  become: yes
+  copy:
+    mode: 0644
+    owner: root
+    group: root
+    force: yes
+    dest: /etc/nginx/nginx.conf
+    content: |
+      user http;
+      worker_processes auto;
+      worker_cpu_affinity auto;
+
+      events {
+          multi_accept on;
+          worker_connections 1024;
+      }
+
+      http {
+        charset utf-8;
+        sendfile on;
+        tcp_nopush on;
+        tcp_nodelay on;
+        server_tokens off;
+        log_not_found off;
+        types_hash_max_size 4096;
+        client_max_body_size 16M;
+
+        # MIME
+        include mime.types;
+        default_type application/octet-stream;
+
+        # logging
+        access_log /var/log/nginx/access.log;
+        error_log /var/log/nginx/error.log warn;
+
+        # load configs
+        include /etc/nginx/conf.d/*.conf;
+        include /etc/nginx/sites-enabled/*;
+
+        server {
+          listen localhost:81;
+          location /metrics {
+            stub_status on;
+          }
+        }
+      }
+
+- name: Create a directory if it does not exist
+  become: yes
+  ansible.builtin.file:
+    path: /usr/share/nginx/manuel.gugger.cloud/html
+    state: directory
+    owner: http
+    group: http
+    mode: 755
+
+- name: set nginx prometheus exporter settings
+  become: yes
+  copy:
+    mode: 0644
+    owner: root
+    group: root
+    force: yes
+    dest: /etc/conf.d/nginx-prometheus-exporter
+    content: |
+      NGINX_EXPORTER_ARGS="-nginx.scrape-uri http://127.0.0.1:81/metrics"
+
+- name: ufw allow prometheus nginx exporter tcp ports
+  become: yes
+  ufw:
+    rule: allow
+    interface: wg0
+    direction: in
+    proto: tcp
+    to_port: "9113"
+  
+- name: set nginx config for ssl
+  become: yes
+  copy:
+    mode: 0644
+    owner: root
+    group: root
+    force: yes
+    dest: /etc/letsencrypt/options-ssl-nginx.conf
+    content: |
+      ssl_session_cache shared:le_nginx_SSL:10m;
+      ssl_session_timeout 1440m;
+      ssl_session_tickets off;
+
+      ssl_protocols TLSv1.2 TLSv1.3;
+      ssl_prefer_server_ciphers off;
+
+      ssl_ciphers "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384";
+
+- name: set nginx config for manuel.gugger.cloud
+  become: yes
+  copy:
+    mode: 0644
+    owner: root
+    group: root
+    force: no
+    dest: /etc/nginx/sites-available/manuel.gugger.cloud
+    content: |
+      # Redirect to HTTPS
+      server {
+          listen 80;
+          server_name manuel.gugger.cloud;
+          return 301 https://$host$request_uri;
+      }
+
+      server {
+        listen 443 ssl http2;
+        listen [::]:443 ssl http2;
+        server_name manuel.gugger.cloud;
+        ssl_certificate /etc/letsencrypt/live/manuel.gugger.cloud/fullchain.pem; # managed by Certbot
+        ssl_certificate_key /etc/letsencrypt/live/manuel.gugger.cloud/privkey.pem; # managed by Certbot
+        include /etc/letsencrypt/options-ssl-nginx.conf;
+        root /usr/share/nginx/manuel.gugger.cloud/html;
+        location / {
+          root static;
+          index index.html;
+        }
+      }
+
+- name: Create a symbolic link for manuel.gugger.cloud
+  become: yes
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/manuel.gugger.cloud
+    dest: /etc/nginx/sites-enabled/manuel.gugger.cloud
+    owner: root
+    group: root
+    state: link
+    force: yes
+
+- name: ufw allow nginx tcp
+  become: yes
+  ufw:
+    rule: allow
+    port: 80
+    proto: tcp
+
+- name: ufw allow nginx tcp
+  become: yes
+  ufw:
+    rule: allow
+    port: 443
+    proto: tcp
+
+- name: Make sure nginx is running
+  become: yes
+  ansible.builtin.systemd:
+    state: restarted
+    name: nginx
+    enabled: yes
+
+- name: Start nginx-prometheus-exporter
+  become: yes
+  ansible.builtin.systemd:
+    name: nginx-prometheus-exporter
+    enabled: yes
+    daemon_reload: yes
+    state: restarted
+
+- name: set certbot systemd service
+  become: yes
+  copy:
+    mode: 0644
+    owner: root
+    group: root
+    force: yes
+    dest: /etc/systemd/system/certbot.service
+    content: |
+      [Unit]
+      Description=Let's Encrypt renewal
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/bin/certbot renew --quiet --agree-tos --post-hook "systemctl reload nginx.service"
+
+- name: set certbot systemd timer service
+  become: yes
+  copy:
+    mode: 0644
+    owner: root
+    group: root
+    force: yes
+    dest: /etc/systemd/system/certbot.timer
+    content: |
+      [Unit]
+      Description=Twice daily renewal of Let's Encrypt's certificates
+
+      [Timer]
+      OnCalendar=0/12:00:00
+      RandomizedDelaySec=1h
+      Persistent=true
+
+      [Install]
+      WantedBy=timers.target
+
+- name: Start certbot
+  become: yes
+  ansible.builtin.systemd:
+    name: certbot.timer
+    enabled: yes
+    daemon_reload: yes
+    state: started
+
+- name: create nginx service for consul
+  become: yes
+  copy:
+    force: yes
+    owner: consul
+    group: consul
+    dest: /etc/consul.d/nginx.json
+    content: |
+      {
+        "service":
+          {
+            "id": "nginx",
+            "name": "nginx",
+            "port": 9113,
+            "address":"",
+            "checks": [
+            ]
+          }
+      }
+
+- name: reload consul
+  command: consul reload

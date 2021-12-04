@@ -1,12 +1,16 @@
 ---
 - name: Install coredns
   when: ansible_facts['os_family'] == "Archlinux"
-  command: yay -S coredns-bin --noconfirm
+  command: yay -S coredns-bin hblock --noconfirm
   args:
     warn: no
 
 - include: install-coredns-on-ubuntu.yml
   when: ansible_facts['os_family'] == "Debian"
+
+- name: update hosts block with hblock
+  become: yes
+  command: hblock
 
 - name: Create zones directory
   become: yes
@@ -15,32 +19,6 @@
     group: coredns
     path: /etc/coredns/zones
     state: directory
-
-- name: set custom hosts file
-  become: yes
-  copy:
-    mode: 0644
-    owner: coredns
-    group: coredns
-    force: yes
-    dest: /etc/coredns/hosts
-    content: |
-      127.0.0.1   localhost
-      ::1         localhost
-      127.0.0.1   nameserver
-        
-- name: add inventory hosts to hosts file
-  when: '"wireguard" in inventory_hostname'
-  become: yes
-  ignore_errors: true
-  blockinfile:
-    dest: "/etc/coredns/hosts"
-    insertafter: BOF
-    state: present
-    marker: "# {mark} {{ item }} ANSIBLE MANAGED HOST"
-    block: |
-      {{ hostvars[item].tags.wireguard_ip.split("/")[0] }} {{ hostvars[item].inventory_hostname }}
-  loop: "{{ groups.all }}"
 
 - name: set custom zone file for gugger.cloud
   become: yes
@@ -121,8 +99,9 @@
         }
         prometheus 0.0.0.0:9153
 
-        hosts /etc/coredns/hosts {
+        hosts /etc/hosts {
           fallthrough
+          reload "12h"
         }
 
         forward . tls://9.9.9.9 {
@@ -218,7 +197,7 @@
       [Resolve]
       DNSStubListener=no
       DNS=127.0.0.1
-      Domains=service.home node.home
+      Domains=~.
       FallbackDNS=9.9.9.9 1.1.1.1
 
 - name: Make sure systemd-resolved is restarted
@@ -227,6 +206,14 @@
     state: restarted
     name: systemd-resolved
     enabled: yes
+
+- name: Create symbolic link 
+  become: yes
+  file:
+    force: yes
+    src: /run/systemd/resolve/stub-resolv.conf
+    dest: /etc/resolv.conf
+    state: link
 
 - name: create coredns service for consul
   become: yes

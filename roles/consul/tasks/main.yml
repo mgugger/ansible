@@ -227,8 +227,16 @@
       [Resolve]
       DNS=127.0.0.1:8600
       DNSSEC=false
-      Domains=service.home node.home ~home
-      FallbackDNS=9.9.9.9 1.1.1.1
+      Domains=~.
+      FallbackDNS=192.168.8.0 9.9.9.9 1.1.1.1
+
+- name: Create symbolic link 
+  become: yes
+  when: consul_role == "client"
+  file:
+    src: /run/systemd/resolve/stub-resolv.conf
+    dest: /etc/resolv.conf
+    state: link
 
 - name: Make sure systemd-resolved is restarted
   become: yes

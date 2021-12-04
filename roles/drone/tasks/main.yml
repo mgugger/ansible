@@ -6,11 +6,12 @@
     state: present
     update_cache: yes
 
-- name: Install drone
-  when: ansible_facts['os_family'] == "Archlinux"
-  command: yay -S drone --noconfirm
-  args:
-    warn: no
+- name: Install package drone-oss from repo
+  become: yes
+  community.general.pacman:
+    name: drone-oss
+    state: present
+    update_cache: yes
 
 - name: allow rootless docker
   become: yes
@@ -40,7 +41,7 @@
     owner: root
     group: root
     force: yes
-    dest: /etc/systemd/system/drone.service.d/drop-in.conf
+    dest: /etc/systemd/system/drone-oss.service.d/drop-in.conf
     content: |
       [Service]
       EnvironmentFile=/etc/conf.d/drone
@@ -102,5 +103,5 @@
   become: yes
   ansible.builtin.systemd:
     state: restarted
-    name: drone
+    name: drone-oss
     enabled: yes

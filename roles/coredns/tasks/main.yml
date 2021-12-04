@@ -180,11 +180,29 @@
     proto: tcp
     to_port: "9153"
 
+- name: set coredns systemd timer service
+  become: yes
+  copy:
+    mode: 0644
+    owner: root
+    group: root
+    force: yes
+    dest: /etc/systemd/system/coredns.timer
+    content: |
+      [Unit]
+      Description=Start coredns 2 mins after boot
+
+      [Timer]
+      OnBootSec=2min
+
+      [Install]
+      WantedBy=timers.target
+
 - name: Make sure coredns is running
   become: yes
   ansible.builtin.systemd:
     state: restarted
-    name: coredns
+    name: coredns.timer
     enabled: yes
 
 - name: Copy nameserver for systemd-resolved
@@ -197,7 +215,7 @@
       [Resolve]
       DNSStubListener=no
       DNS=127.0.0.1
-      Domains=~.
+      Domains=~service.home ~node.home ~gugger.cloud
       FallbackDNS=9.9.9.9 1.1.1.1
 
 - name: Make sure systemd-resolved is restarted

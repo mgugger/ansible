@@ -175,10 +175,28 @@
 
       retry_join = ["{{ hostvars[groups._wireguard[0]].tags.wireguard_ip.split("/")[0] }}"]
 
+- name: set consul systemd timer service
+  become: yes
+  copy:
+    mode: 0644
+    owner: root
+    group: root
+    force: yes
+    dest: /etc/systemd/system/consul.timer
+    content: |
+      [Unit]
+      Description=Start consul 3 mins after boot
+
+      [Timer]
+      OnBootSec=5min
+
+      [Install]
+      WantedBy=timers.target
+
 - name: Start consul
   become: yes
   ansible.builtin.systemd:
-    name: consul
+    name: consul.timer
     enabled: yes
     daemon_reload: yes
     state: started

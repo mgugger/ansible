@@ -68,6 +68,8 @@
       DRONE_RUNNER_NAME="default"
       DRONE_RUNNER_CAPACITY=1
       DRONE_USER_CREATE=username:manuel,machine:false,admin:true
+      DRONE_DATABASE_DATASOURCE=/var/lib/drone/core.sqlite
+      DRONE_DATABASE_DRIVER=sqlite3
 
 - name: create drone service for consul
   become: yes

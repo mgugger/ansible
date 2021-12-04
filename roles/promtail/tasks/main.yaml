@@ -50,11 +50,29 @@
             app:
             method:
 
+- name: set consul systemd timer service
+  become: yes
+  copy:
+    mode: 0644
+    owner: root
+    group: root
+    force: yes
+    dest: /etc/systemd/system/promtail.timer
+    content: |
+      [Unit]
+      Description=Start promtail 10 mins after boot
+
+      [Timer]
+      OnBootSec=10min
+
+      [Install]
+      WantedBy=timers.target
+
 - name: Make sure promtail is running
   become: yes
   ansible.builtin.systemd:
     state: restarted
-    name: promtail
+    name: promtail.timer
     enabled: yes
 
 - name: create consul entry

@@ -6,6 +6,18 @@
     state: present
     update_cache: yes
 
+
+- name: NetworkManager config
+  become: yes
+  ignore_errors: true
+  copy:
+    force: yes
+    mode: 0644
+    dest: /etc/NetworkManager/conf.d/dns.conf
+    content: |
+      [main]
+      dns=none
+
 - name: Copy nameserver for systemd-resolved
   become: yes
   copy:
@@ -33,12 +45,23 @@
     name: systemd-resolved
     enabled: yes
 
+- name: NetworkManager config
+  become: yes
+  ignore_errors: true
+  copy:
+    force: yes
+    mode: 0644
+    dest: /etc/NetworkManager/conf.d/dns.conf
+    content: |
+      [main]
+      dns=none
+
 - name: Unbound config
   become: yes
   copy:
     force: yes
     mode: 0644
-    dest: /etc/systemd/resolved.conf
+    dest: /etc/unbound/unbound.conf
     content: |
       server:
         tls-cert-bundle: /etc/ssl/certs/ca-certificates.crt

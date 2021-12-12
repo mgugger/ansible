@@ -9,6 +9,6 @@ remote_vnet_cidr:
 wireguard_mobile:
   internal_ip: "192.168.8.254"
   internal_endpoint: "192.168.0.199"
-  internal_publickey: "{{ lookup('bitwarden', 'wireguard', field='mobile1_local_publickey', custom_field=true) }}"
+  internal_publickey: MJKwvSNmDmujKJZWvuwt4+HqE6bmFquDaFBe6ATfvUc=
   external_ip: "192.168.8.253"
-  external_publickey: "{{ lookup('bitwarden', 'wireguard', field='mobile1_www_publickey', custom_field=true) }}"
+  external_publickey: L59rwnRtoVHq1tMxuEmi1LVcsyOX5Ekssvkv0a4vmgI=

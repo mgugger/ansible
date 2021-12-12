@@ -1,10 +1,10 @@
 - name: configure wireguard peers
   hosts: all:!_wireguard
   roles:
-  - role: ansible-modules-bitwarden
-    tags: [ always ]
   - role: wireguard
     tags: [ wireguard ]
+  - role: unbound
+    tags: [ unbound]
   - role: consul
     consul_role: client
     tags: [ consul ]
@@ -20,8 +20,6 @@
 - name: configure wireguard server
   hosts: _wireguard
   roles:
-  - role: ansible-modules-bitwarden
-    tags: [ always ]
   - role: wireguard
     tags: [ wireguard ]
   - role: coredns

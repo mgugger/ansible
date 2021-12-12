@@ -1,0 +1,62 @@
+---
+- name: Install package consul from repo
+  become: yes
+  community.general.pacman:
+    name: unbound
+    state: present
+    update_cache: yes
+
+- name: Copy nameserver for systemd-resolved
+  become: yes
+  copy:
+    force: yes
+    mode: 0644
+    dest: /etc/systemd/resolved.conf
+    content: |
+      [Resolve]
+      DNSStubListener=no
+      DNS=127.0.0.1
+      DNSOverTLS=no
+      Domains=~.
+
+- name: Create symbolic link 
+  become: yes
+  file:
+    src: /run/systemd/resolve/stub-resolv.conf
+    dest: /etc/resolv.conf
+    state: link
+
+- name: Make sure systemd-resolved is restarted
+  become: yes
+  ansible.builtin.systemd:
+    state: restarted
+    name: systemd-resolved
+    enabled: yes
+
+- name: Unbound config
+  become: yes
+  copy:
+    force: yes
+    mode: 0644
+    dest: /etc/systemd/resolved.conf
+    content: |
+      server:
+        tls-cert-bundle: /etc/ssl/certs/ca-certificates.crt
+        private-domain: "home"
+        domain-insecure: "home"
+        trust-anchor-file: trusted-key.key
+      forward-zone:
+        name: "."
+        forward-tls-upstream: yes
+        forward-addr: 9.9.9.9@853#dns.quad9.net
+        forward-addr: 149.112.112.112@853#dns.quad9.net
+      forward-zone:
+        name: "home."
+        forward-addr: {{ hostvars[groups._wireguard[0]].tags.wireguard_ip.split("/")[0] }}@53
+
+- name: Make sure unbound is restarted
+  become: yes
+  ansible.builtin.systemd:
+    state: restarted
+    name: unbound
+    enabled: yes

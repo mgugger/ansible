@@ -157,6 +157,16 @@
         forward . 168.63.129.16
       }
 
+      windows.net {
+        acl {
+          allow net 192.168.0.0/16 10.0.0.0/8 172.16.0.0/12 127.0.0.1
+          block
+        }
+        prometheus 0.0.0.0:9153
+
+        forward . 168.63.129.16
+      }
+
 - name: ufw allow coredns udp
   become: yes
   ufw:
@@ -214,9 +224,8 @@
     content: |
       [Resolve]
       DNSStubListener=no
-      DNS=127.0.0.1
-      Domains=~service.home ~node.home ~gugger.cloud
-      FallbackDNS=9.9.9.9 1.1.1.1
+      DNS=127.0.0.1 9.9.9.9 1.1.1.1
+      Domains=~.
 
 - name: Make sure systemd-resolved is restarted
   become: yes

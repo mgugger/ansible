@@ -13,13 +13,6 @@
     name: wireguard-tools
     state: present
 
-- name: install ufw
-  when: ansible_facts['os_family'] == "Archlinux" and (group_names | select('search','k3s') | list | count <= 0)
-  become: yes
-  community.general.pacman:
-    name: ufw
-    state: present
-
 - name: Check if private key exists
   become: yes
   stat:
@@ -62,7 +55,7 @@
   copy:
     content: ""
     dest: "/etc/wireguard/wg0.conf"
-    force: yes
+    force: no
     group: root
     owner: root
 
@@ -128,12 +121,12 @@
   loop: "{{ publickeys['results'] }}"
 
 - name: add internal mobile peers to server
-  ignore_errors: true
   become: yes
+  when: wireguard_mobile.internal_endpoint | ipaddr(subnet) | ipaddr('bool')
   blockinfile:
     dest: "/etc/wireguard/wg0.conf"
     state: present
-    marker: "# mobile1 internal ANSIBLE MANAGED WG PEER"
+    marker: "# {mark} mobile1 internal ANSIBLE MANAGED WG PEER"
     block: |
       [Peer]
       AllowedIPs = {{ wireguard_mobile.internal_ip }}
@@ -141,13 +134,12 @@
       Endpoint = {{ wireguard_mobile.internal_endpoint }}:51820
 
 - name: add external mobile peers to server
-  ignore_errors: true
   when: '"_wireguard" in group_names'
   become: yes
   blockinfile:
     dest: "/etc/wireguard/wg0.conf"
     state: present
-    marker: "# mobile1 external ANSIBLE MANAGED WG PEER"
+    marker: "# {mark} mobile1 external ANSIBLE MANAGED WG PEER"
     block: |
       [Peer]
       AllowedIPs = {{ wireguard_mobile.external_ip }}
@@ -174,6 +166,7 @@
     reload: yes
 
 - name: limit ssh on ufw
+  ignore_errors: true
   when: not (group_names | select('search','k3s') | list | count > 0)
   become: yes
   ufw:
@@ -182,6 +175,7 @@
     proto: tcp
 
 - name: ufw allow wireguard
+  ignore_errors: true
   when: not (group_names | select('search','k3s') | list | count > 0)
   become: yes
   ufw:

@@ -15,12 +15,15 @@ home:
       tags:
         wireguard_ip: 192.168.8.6
         wireguard_add_remote_cidrs: true
+    surface:
+      ansible_host: 192.168.0.200
+      tags:
+        wireguard_ip: 196.168.8.7
+        wireguard_add_remote_cidrs: true
   children:
-    _coredns:
-      hosts:
-        raspi:
     _running:
       hosts:
         raspi:
         desktop:
         t420s:
+        surface:

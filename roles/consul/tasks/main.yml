@@ -133,7 +133,7 @@
 
       server = true
       bootstrap_expect = 1
-      recursors = ["192.168.8.0"]
+      recursors = ["{{ hostvars[groups._wireguard[0]].tags.wireguard_ip.split("/")[0] }}"]
 
       dns_config {
         node_ttl = "60s"
@@ -162,7 +162,7 @@
         enabled = false
       }
       server = false
-      recursors = ["192.168.8.0"]
+      recursors = ["{{ hostvars[groups._wireguard[0]].tags.wireguard_ip.split("/")[0] }}"]
 
       dns_config {
         use_cache = true
@@ -173,7 +173,7 @@
         }
       }
 
-      retry_join = ["{{ hostvars[groups._wireguard[0]].tags.wireguard_ip.split("/")[0] }}"]
+      retry_join = ["consul.service.home"]
 
 - name: set consul systemd timer service
   become: yes
@@ -201,6 +201,14 @@
     daemon_reload: yes
     state: started
 
+- name: Start consul
+  become: yes
+  ansible.builtin.systemd:
+    name: consul
+    enabled: no
+    daemon_reload: yes
+    state: started
+
 - name: set consul ports
   set_fact:
     tcp_ports:
@@ -216,6 +224,7 @@
 
 - name: ufw allow consul tcp ports
   become: yes
+  ignore_errors: true
   ufw:
     rule: allow
     interface: wg0
@@ -226,6 +235,7 @@
 
 - name: ufw allow consul udp ports
   become: yes
+  ignore_errors: true
   ufw:
     rule: allow
     interface: wg0
@@ -233,33 +243,3 @@
     proto: udp
     to_port: "{{ item }}"
   loop: "{{ udp_ports }}"
-
-- name: Copy nameserver for systemd-resolved
-  become: yes
-  when: consul_role == "client"
-  copy:
-    force: yes
-    mode: 0644
-    dest: /etc/systemd/resolved.conf
-    content: |
-      [Resolve]
-      DNS=127.0.0.1:8600
-      DNSSEC=false
-      Domains=~.
-      FallbackDNS=192.168.8.0 9.9.9.9 1.1.1.1
-
-- name: Create symbolic link 
-  become: yes
-  when: consul_role == "client"
-  file:
-    src: /run/systemd/resolve/stub-resolv.conf
-    dest: /etc/resolv.conf
-    state: link
-
-- name: Make sure systemd-resolved is restarted
-  become: yes
-  when: consul_role == "client"
-  ansible.builtin.systemd:
-    state: restarted
-    name: systemd-resolved
-    enabled: yes 

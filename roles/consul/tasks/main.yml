@@ -71,6 +71,9 @@
       content: |
         [Unit]
         After=wg-quick@wg0.service
+
+        [Service]
+        MemoryMax=150M
   
   # Download binary from github (for aarch64)
   rescue:
@@ -99,6 +102,7 @@
         After=wg-quick@wg0.service
 
         [Service]
+        MemoryMax=150M
         User=consul
         Group=consul
         EnvironmentFile=-/etc/default/consul

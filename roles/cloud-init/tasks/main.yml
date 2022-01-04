@@ -1,0 +1,15 @@
+---
+- name: Install package cloud-init and deps from repo
+  become: yes
+  community.general.pacman:
+    name: 
+      - cloud-init
+      - gptfdisk
+    state: present
+    update_cache: yes
+
+- name: Make sure cloud-init is enabled
+  become: yes
+  ansible.builtin.systemd:
+    name: cloud-init
+    enabled: yes

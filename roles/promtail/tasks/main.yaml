@@ -50,6 +50,26 @@
             app:
             method:
 
+- name: Create a directory if it does not exist
+  become: yes
+  ansible.builtin.file:
+    path: /etc/systemd/system/promtail.service.d
+    state: directory
+    owner: root
+    group: root
+
+- name: create promtail system service drop-in
+  become: yes
+  copy:
+    force: yes
+    mode: 0644
+    owner: root
+    group: root
+    dest: /etc/systemd/system/promtail.service.d/drop-in.conf
+    content: |
+      [Service]
+      MemoryMax=80M
+
 - name: set consul systemd timer service
   become: yes
   copy:

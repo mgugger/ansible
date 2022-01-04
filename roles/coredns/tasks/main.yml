@@ -1,16 +1,12 @@
 ---
 - name: Install coredns
   when: ansible_facts['os_family'] == "Archlinux"
-  command: yay -S coredns-bin hblock --noconfirm
+  command: yay -S coredns-bin --noconfirm
   args:
     warn: no
 
 - include: install-coredns-on-ubuntu.yml
   when: ansible_facts['os_family'] == "Debian"
-
-- name: update hosts block with hblock
-  become: yes
-  command: hblock
 
 - name: Create zones directory
   become: yes
@@ -207,6 +203,27 @@
 
       [Install]
       WantedBy=timers.target
+
+- name: Create a directory if it does not exist
+  become: yes
+  ansible.builtin.file:
+    path: /etc/systemd/system/coredns.service.d
+    state: directory
+    owner: root
+    group: root
+
+- name: create coredns system service drop-in
+  become: yes
+  copy:
+    force: yes
+    mode: 0644
+    owner: root
+    group: root
+    dest: /etc/systemd/system/coredns.service.d/drop-in.conf
+    content: |
+      [Service]
+      MemoryMax=30M
+      Nice=-15
 
 - name: Make sure coredns is running
   become: yes

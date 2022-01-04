@@ -16,6 +16,8 @@
     tags: [ promtail ]
   - role: restic
     tags: [ restic ]
+  - role: yay
+    tags: [ yay ]
 
 - name: configure wireguard server
   hosts: _wireguard
@@ -37,3 +39,5 @@
     tags: [ restic ]
   - role: nginx
     tags: [ nginx ]
+  - role: yay
+    tags: [ yay ]

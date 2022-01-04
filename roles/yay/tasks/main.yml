@@ -13,8 +13,15 @@
     cmd: git clone https://aur.archlinux.org/yay-bin.git
 
 - name: makepkg
+  when: lookup('env', 'USER') == "root"
   command: 
     cmd: sudo -u admin makepkg -si --noconfirm
+    chdir: yay-bin
+
+- name: makepkg
+  when: lookup('env', 'USER') != "root"
+  command: 
+    cmd: makepkg -si --noconfirm
     chdir: yay-bin
 
 - name: Make sure yay-bin is not present

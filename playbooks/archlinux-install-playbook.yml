@@ -17,5 +17,6 @@
     ansible_connection: ssh
     ansible_user: "root"
     ansible_ssh_pass: "{{ password }}"
+    bootloader: "uefi"
   vars_files:
     - ./vars/archlinux-install.yml

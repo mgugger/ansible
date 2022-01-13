@@ -1,0 +1,12 @@
+---
+- hosts: localhost
+  # The minimal set of roles needed to be able to provision a new instance.
+  roles:
+    - archlinux-install
+  become: yes
+  vars:
+    install_device_name: /dev/vda
+    bootloader: bios
+    target_ip: 127.0.0.1
+    cloud_init: true
+    mkinitcpio_modules: hv_storvsc hv_vmbus

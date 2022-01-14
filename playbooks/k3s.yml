@@ -1,6 +1,0 @@
-- name: configure k3s agents and servers
-  hosts: _k3s_server:_k3s_agent
-  roles:
-  - ansible-modules-bitwarden
-  - swap
-  - k3s

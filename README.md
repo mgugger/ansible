@@ -1,6 +1,10 @@
-# Ansible Playbooks
+# Ansible
 
-This repo contains various playbooks to run in combination with azure for testing azure arc among other things.
+## Create Archlinux VHD Image
+```
+packer build -var "username=$(whoami)" -var "user_ssh_public_key=$(cat ~/.ssh/id_rsa.pub)" archlinux-packer.json
+```
+
 
 # Local Testing in Hyper-V
 An easy way to test these playbooks is by running vms in hyper-v and run these playbooks from wsl.

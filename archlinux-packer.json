@@ -42,7 +42,8 @@
         {
             "type": "ansible-local",
             "extra_arguments": [
-                "-v"
+                "-v",
+                "--extra-vars", "\"username=\\\"{{ user `username` }}\\\" user_ssh_public_key=\\\"{{ user `user_ssh_public_key`}}\\\"\""
             ],
             "playbook_file": "playbooks/create-packer-qemu-img.yml",
             "role_paths": [

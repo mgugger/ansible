@@ -1,4 +1,7 @@
 ---
+- debug:
+    msg: "Installing system for user {{ username }} with public ssh key {{ user_ssh_public_key | default('') }}"
+
 - name: Check device name {{ install_device_name }} exists
   stat: "path={{ install_device_name }}"
   delegate_to: "{{ target_ip }}"
@@ -194,7 +197,7 @@
         hwclock --systohc
         locale-gen
         echo -e "root\nroot" | passwd
-        pacman -Sy --noconfirm openssh dhcpcd nano python sudo iwd
+        pacman -Sy --noconfirm btrfs-progs openssh dhcpcd nano python sudo iwd
         systemctl enable sshd
         systemctl enable dhcpcd       
         mkinitcpio -P || true
@@ -243,6 +246,96 @@
         systemctl enable cloud-init.service
         systemctl enable cloud-final.service
 
+- name: set cloud-init cloud.cfg
+  delegate_to: "{{ target_ip }}"
+  copy:
+    owner: root
+    group: root
+    force: yes
+    dest: /mnt/etc/cloud/cloud.cfg
+    content: |
+      users:
+        - name: {{ username }}
+          sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+          shell: /bin/bash
+          groups: users, wheel
+          lock_passwd: true
+          ssh_authorized_keys:
+            - {{ user_ssh_public_key }}
+      disable_root: true
+      preserve_hostname: false
+      datasource_list: [ Azure ]
+
+      # The modules that run in the 'init' stage
+      cloud_init_modules:
+      - migrator
+      - seed_random
+      - bootcmd
+      - write-files
+      - growpart
+      - resizefs
+      - disk_setup
+      - mounts
+      - set_hostname
+      - update_hostname
+      - update_etc_hosts
+      - ca-certs
+      - rsyslog
+      - users-groups
+      - ssh
+
+      # The modules that run in the 'config' stage
+      cloud_config_modules:
+      - ssh-import-id
+      - locale
+      - set-passwords
+      - ntp
+      - timezone
+      - runcmd
+
+      # The modules that run in the 'final' stage
+      cloud_final_modules:
+      - package-update-upgrade-install
+      - write-files-deferred
+      - mcollective
+      - reset_rmc
+      - refresh_rmc_and_interface
+      - rightscale_userdata
+      - scripts-vendor
+      - scripts-per-once
+      - scripts-per-boot
+      - scripts-per-instance
+      - scripts-user
+      - ssh-authkey-fingerprints
+      - keys-to-console
+      - install-hotplug
+      - phone-home
+      - final-message
+      - power-state-change
+
+      system_info:
+        distro: arch
+        paths:
+            cloud_dir: /var/lib/cloud/
+            templates_dir: /etc/cloud/templates/
+        ssh_svcname: sshd   
+
+      #cloud-config
+      device_aliases: {'ephemeral0': '/dev/disk/cloud/azure_resource'}
+      disk_setup:
+        ephemeral0:
+          table_type: gpt
+          layout: [66, [33,82]]
+          overwrite: true
+      fs_setup:
+        - device: ephemeral0.1
+          filesystem: ext4
+        - device: ephemeral0.2
+          filesystem: swap
+      mounts:
+        - ["ephemeral0.1", "/mnt"]
+        - ["ephemeral0.2", "none", "swap", "sw,nofail,x-systemd.requires=cloud-init.service", "0", "0"]
+
 - name: Install firewalld
   delegate_to: "{{ target_ip }}"
   ignore_errors: true
@@ -254,7 +347,7 @@
       - -c
       - |
         pacman -Sy --noconfirm firewalld nftables
-        firewall-cmd --zone=public --add-service ssh --permanent
+        firewall-cmd --zone public --permanent --add-rich-rule 'rule service name="ssh" accept limit value="2/m"'
         systemctl enable firewalld
 
 - name: get UUID
@@ -285,8 +378,12 @@
       - -c
       - |
         useradd -m {{ username }}
+        {% if ansible_ssh_pass is defined %}
         echo -e "{{ ansible_ssh_pass }}\n{{ ansible_ssh_pass }}" | passwd {{ username }}
+        {% endif %}
         gpasswd -a {{ username }} wheel
+        mkdir /home/{{ username }}/.ssh
+        echo "{{ user_ssh_public_key | default("") }}" >> /home/{{ username }}/.ssh/authorized_keys
         
 - name: allow admin user passwordless sudo
   delegate_to: "{{ target_ip }}"

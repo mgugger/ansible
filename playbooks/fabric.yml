@@ -3,6 +3,8 @@
   roles:
   - role: wireguard
     tags: [ wireguard ]
+  - role: yay
+    tags: [ yay ]
   - role: unbound
     tags: [ unbound]
   - role: consul
@@ -10,34 +12,28 @@
     tags: [ consul ]
   - role: node-exporter
     tags: [ node-exporter ]
-  - role: cloud-init
-    tags: [ cloud-init ]
   - role: promtail
     tags: [ promtail ]
   - role: restic
     tags: [ restic ]
-  - role: yay
-    tags: [ yay ]
 
 - name: configure wireguard server
   hosts: _wireguard
   roles:
   - role: wireguard
     tags: [ wireguard ]
-  - role: coredns
-    tags: [ coredns ]
+  - role: yay
+    tags: [ yay ]
   - role: consul
     consul_role: server
     tags: [ consul ]
+  - role: coredns
+    tags: [ coredns ]
   - role: node-exporter
     tags: [ node-exporter ]
-  - role: swap
-    tags: [ swap ]
   - role: promtail
     tags: [ promtail ]
   - role: restic
     tags: [ restic ]
   - role: nginx
     tags: [ nginx ]
-  - role: yay
-    tags: [ yay ]

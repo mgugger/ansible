@@ -5,25 +5,25 @@ home:
       tags:
         wireguard_ip: 192.168.8.1
         wireguard_add_remote_cidrs: true
-    raspi:
-      ansible_host: 192.168.0.45
-      tags:
-        wireguard_ip: 192.168.8.2
-        wireguard_add_remote_cidrs: true
-    t420s:
-      ansible_host: 192.168.0.206
-      tags:
-        wireguard_ip: 192.168.8.6
-        wireguard_add_remote_cidrs: true
-    surface:
-      ansible_host: 192.168.0.200
-      tags:
-        wireguard_ip: 196.168.8.7
-        wireguard_add_remote_cidrs: true
+    # raspi:
+    #   ansible_host: 192.168.0.45
+    #   tags:
+    #     wireguard_ip: 192.168.8.2
+    #     wireguard_add_remote_cidrs: true
+    # t420s:
+    #   ansible_host: 192.168.0.206
+    #   tags:
+    #     wireguard_ip: 192.168.8.6
+    #     wireguard_add_remote_cidrs: true
+    # surface:
+    #   ansible_host: 192.168.0.200
+    #   tags:
+    #     wireguard_ip: 196.168.8.7
+    #     wireguard_add_remote_cidrs: true
   children:
     _running:
       hosts:
-        raspi:
         desktop:
-        t420s:
-        surface:
+        # raspi:
+        # t420s:
+        # surface:

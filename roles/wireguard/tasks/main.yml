@@ -71,10 +71,6 @@
       PrivateKey = {{ wireguard_server_privatekey['content'] | b64decode | trim }}
       ListenPort = 51820
       MTU = 1400
-      PostUp = iptables -t nat -I POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
-      PostUp = ip6tables -t nat -I POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
-      PreDown = iptables -t nat -D POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
-      PreDown = ip6tables -t nat -D POSTROUTING -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
 
 - name: get subnet from netmask
   set_fact:
@@ -165,49 +161,39 @@
     state: present
     reload: yes
 
-- name: limit ssh on ufw
-  ignore_errors: true
-  when: not (group_names | select('search','k3s') | list | count > 0)
+- name: add wg0 to internal zone
   become: yes
-  ufw:
-    rule: limit
-    port: ssh
-    proto: tcp
+  tags: [ firewall ]
+  ansible.posix.firewalld:
+    zone: internal
+    interface: wg0
+    permanent: yes
+    state: enabled
+    immediate: yes
 
-- name: ufw allow wireguard
-  ignore_errors: true
-  when: not (group_names | select('search','k3s') | list | count > 0)
+- name: add {{ ansible_default_ipv4.interface }} to public zone
   become: yes
-  ufw:
-    rule: allow
-    port: 51820
-    proto: udp
+  tags: [ firewall ]
+  ansible.posix.firewalld:
+    zone: public
+    interface: "{{ ansible_default_ipv4.interface }}"
+    permanent: yes
+    state: enabled
+    immediate: yes
+
+- name: permit traffic in the public zone wireguard
+  become: yes
+  tags: [ firewall ]
+  ansible.posix.firewalld:
+    permanent: yes
+    state: enabled
+    zone: public
+    port: 51820/udp
+    immediate: yes
 
 - name: check if system is using systemd
   command: ps -p 1
   register: process_one
-
-# - name: enable ufw
-#   when: "'systemd' in process_one['stdout'] and (group_names | select('search','k3s') | list | count <= 0)"
-#   become: yes
-#   ufw:
-#     state: enabled
-#     policy: deny
-
-- name: allow forwarding from eth0 to wg on server
-  when: '"wireguard" in group_names and (group_names | select("search","k3s") | list | count <= 0)'
-  become: yes
-  ufw:
-    rule: allow
-    route: yes
-
-# - name: Make sure ufw is enabled
-#   become: yes
-#   when: "'systemd' in process_one['stdout'] and group_names | select('search','k3s') | list | count <= 0"
-#   ansible.builtin.systemd:
-#     state: started
-#     name: ufw
-#     enabled: yes
 
 - name: Make sure wireguard is running
   become: yes

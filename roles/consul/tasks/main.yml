@@ -189,10 +189,10 @@
     dest: /etc/systemd/system/consul.timer
     content: |
       [Unit]
-      Description=Start consul 3 mins after boot
+      Description=Start consul 2 mins after boot
 
       [Timer]
-      OnBootSec=5min
+      OnBootSec=2min
 
       [Install]
       WantedBy=timers.target
@@ -226,24 +226,24 @@
       - 8301
       - 8302
 
-- name: ufw allow consul tcp ports
+- name: firewalld allow consul tcp ports
   become: yes
   ignore_errors: true
-  ufw:
-    rule: allow
-    interface: wg0
-    direction: in
-    proto: tcp
-    to_port: "{{ item }}"
+  ansible.posix.firewalld:
+    permanent: yes
+    state: enabled
+    zone: internal
+    port: "{{ item }}/tcp"
+    immediate: yes
   loop: "{{ tcp_ports }}"
 
 - name: ufw allow consul udp ports
   become: yes
   ignore_errors: true
-  ufw:
-    rule: allow
-    interface: wg0
-    direction: in
-    proto: udp
-    to_port: "{{ item }}"
+  ansible.posix.firewalld:
+    permanent: yes
+    state: enabled
+    zone: internal
+    port: "{{ item }}/udp"
+    immediate: yes
   loop: "{{ udp_ports }}"

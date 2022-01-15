@@ -43,25 +43,6 @@
       manuel IN A 20.199.182.92
       www    IN A 20.199.182.92
 
-- name: set custom zone file for .internal
-  become: yes
-  when: groups._k3s_agent is defined
-  copy:
-    mode: 0644
-    owner: coredns
-    group: coredns
-    force: yes
-    dest: /etc/coredns/zones/internal.zone
-    content: |
-      $ORIGIN internal.
-      @	3600 IN	SOA sns.dns.icann.org. noc.dns.icann.org. 2017042745 7200 3600 1209600 3600
-        3600 IN NS a.iana-servers.net.
-        3600 IN NS b.iana-servers.net.
-
-      {% for k3s_node in (groups._k3s_agent|union(groups._k3s_server)) %}
-      *         IN  A     {{ hostvars[k3s_node]['tags']['wireguard_ip'].split("/")[0] }};
-      {% endfor %}
-
 - name: set custom zone file for .k8s
   become: yes
   copy:
@@ -133,16 +114,6 @@
         file /etc/coredns/zones/k8s.zone
       }
 
-      internal. {
-        acl {
-          allow net 192.168.0.0/16 10.0.0.0/8 172.16.0.0/12 127.0.0.1
-          block
-        }
-        prometheus 0.0.0.0:9153
-
-        file /etc/coredns/zones/internal.zone
-      }
-
       azure.com {
         acl {
           allow net 192.168.0.0/16 10.0.0.0/8 172.16.0.0/12 127.0.0.1
@@ -163,28 +134,35 @@
         forward . 168.63.129.16
       }
 
-- name: ufw allow coredns udp
+- name: firewalld allow coredns udp
   become: yes
-  ufw:
-    rule: allow
-    port: 53
-    proto: udp
+  tags: [ firewall ]
+  ansible.posix.firewalld:
+    permanent: yes
+    state: enabled
+    zone: public
+    port: 53/udp
+    immediate: yes
 
-- name: ufw allow coredns tcp
+- name: firewalld allow coredns tcp
   become: yes
-  ufw:
-    rule: allow
-    port: 53
-    proto: tcp
+  tags: [ firewall ]
+  ansible.posix.firewalld:
+    permanent: yes
+    state: enabled
+    zone: public
+    port: 53/tcp
+    immediate: yes
 
-- name: ufw allow coredns metrics tcp ports
+- name: firewalld allow coredns metrics tcp ports
   become: yes
-  ufw:
-    rule: allow
-    interface: wg0
-    direction: in
-    proto: tcp
-    to_port: "9153"
+  tags: [ firewall ]
+  ansible.posix.firewalld:
+    permanent: yes
+    state: enabled
+    zone: internal
+    port: 9153/tcp
+    immediate: yes
 
 - name: set coredns systemd timer service
   become: yes
@@ -196,10 +174,10 @@
     dest: /etc/systemd/system/coredns.timer
     content: |
       [Unit]
-      Description=Start coredns 2 mins after boot
+      Description=Start coredns 1 mins after boot
 
       [Timer]
-      OnBootSec=2min
+      OnBootSec=1min
 
       [Install]
       WantedBy=timers.target
@@ -222,7 +200,7 @@
     dest: /etc/systemd/system/coredns.service.d/drop-in.conf
     content: |
       [Service]
-      MemoryMax=30M
+      MemoryMax=40M
       Nice=-15
 
 - name: Make sure coredns is running
@@ -287,4 +265,5 @@
       }
 
 - name: reload consul
+  ignore_errors: true
   command: consul reload

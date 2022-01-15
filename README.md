@@ -1,5 +1,8 @@
 # Ansible
 
+## Requirements
+* Azure CLI for the ansible azure inventory to work and the required ansible packages
+
 ## Create Archlinux VHD Image
 ```
 packer build -var "username=$(whoami)" -var "user_ssh_public_key=$(cat ~/.ssh/id_rsa.pub)" archlinux-packer.json

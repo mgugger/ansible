@@ -96,14 +96,15 @@
     content: |
       NGINX_EXPORTER_ARGS="-nginx.scrape-uri http://localhost:81/metrics"
 
-- name: ufw allow prometheus nginx exporter tcp ports
+- name: firewalld allow prometheus nginx exporter tcp ports
   become: yes
-  ufw:
-    rule: allow
-    interface: wg0
-    direction: in
-    proto: tcp
-    to_port: "9113"
+  tags: [ firewall ]
+  ansible.posix.firewalld:
+    permanent: yes
+    state: enabled
+    zone: internal
+    port: 9113/tcp
+    immediate: yes
   
 - name: set nginx config for ssl
   become: yes
@@ -129,7 +130,7 @@
     mode: 0644
     owner: root
     group: root
-    force: no
+    force: yes
     dest: /etc/nginx/sites-available/manuel.gugger.cloud
     content: |
       # Redirect to HTTPS
@@ -148,7 +149,6 @@
         include /etc/letsencrypt/options-ssl-nginx.conf;
         root /usr/share/nginx/manuel.gugger.cloud/html;
         location / {
-          root static;
           index index.html;
         }
       }
@@ -163,19 +163,25 @@
     state: link
     force: yes
 
-- name: ufw allow nginx tcp
+- name: firewalld allow nginx tcp
   become: yes
-  ufw:
-    rule: allow
-    port: 80
-    proto: tcp
+  tags: [ firewall ]
+  ansible.posix.firewalld:
+    permanent: yes
+    state: enabled
+    zone: public
+    port: 80/tcp
+    immediate: yes
 
-- name: ufw allow nginx tcp
+- name: firewalld allow nginx tcp
   become: yes
-  ufw:
-    rule: allow
-    port: 443
-    proto: tcp
+  tags: [ firewall ]
+  ansible.posix.firewalld:
+    permanent: yes
+    state: enabled
+    zone: public
+    port: 443/tcp
+    immediate: yes
 
 - name: Make sure nginx is running
   become: yes

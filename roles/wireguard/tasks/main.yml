@@ -171,6 +171,25 @@
     state: enabled
     immediate: yes
 
+- name: set target ACCEPT for internal to allow to act as router and set outbound to the public zone
+  become: yes
+  when: '"_wireguard" in group_names'
+  ansible.posix.firewalld:
+    zone: internal
+    state: present
+    permanent: yes
+    target: ACCEPT
+
+- name: allow wg0 postrouting to {{ ansible_default_ipv4.interface }} to act as router
+  when: '"_wireguard" in group_names'
+  become: yes
+  shell:
+    cmd: |
+      firewall-cmd --permanent --direct --add-rule ipv4 nat POSTROUTING 0 -o {{ ansible_default_ipv4.interface }} -j MASQUERADE
+      #firewall-cmd --direct --add-rule ipv4 filter FORWARD 0 -i {{ ansible_default_ipv4.interface }} -o wg0 -j ACCEPT
+      #firewall-cmd --direct --add-rule ipv4 filter FORWARD 0 -i {{ ansible_default_ipv4.interface }} -o wg0 -m state --state RELATED,ESTABLISHED -j ACCEPT
+      firewall-cmd --reload
+
 - name: add {{ ansible_default_ipv4.interface }} to public zone
   become: yes
   tags: [ firewall ]
@@ -188,7 +207,25 @@
     permanent: yes
     state: enabled
     zone: public
-    port: 51820/udp
+    service: wireguard
+    immediate: yes
+
+- name: enable masquerade for public
+  become: yes
+  ansible.posix.firewalld:
+    masquerade: yes
+    state: enabled
+    permanent: yes
+    zone: public
+    immediate: yes
+
+- name: enable masquerade for internal
+  become: yes
+  ansible.posix.firewalld:
+    masquerade: yes
+    state: enabled
+    permanent: yes
+    zone: internal
     immediate: yes
 
 - name: check if system is using systemd

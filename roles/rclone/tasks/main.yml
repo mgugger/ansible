@@ -35,6 +35,7 @@
 - name: fuse allow other user
   become: yes
   ansible.builtin.lineinfile:
+    create: yes
     path: /etc/fuse.conf
     line: user_allow_other
 

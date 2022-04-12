@@ -3,8 +3,25 @@
   when: ansible_facts['os_family'] == "Debian"
   become: yes
   apt:
-    name: wireguard
+    name: 
+    - wireguard
     update_cache: yes
+
+- name: Update repositories cache and install "firewalld" package
+  when: ansible_facts['os_family'] == "Debian" and inventory_hostname != "localhost"
+  become: yes
+  apt:
+    name: 
+    - firewalld
+    update_cache: yes
+
+- name: Update repositories cache and install "wireguard" package
+  when: ansible_facts['os_family'] == "Debian" and inventory_hostname != "localhost"
+  become: yes
+  ansible.builtin.systemd:
+    state: started
+    name: firewalld
+    enabled: yes
 
 - name: install wireguard
   when: ansible_facts['os_family'] == "Archlinux"
@@ -41,7 +58,7 @@
   ansible.builtin.slurp:
     src: /etc/wireguard/publickey
   register: publickeys
-  loop: "{{ groups._running |difference([inventory_hostname]) }}"
+  loop: "{{ groups._running | default(groups.all) |difference([inventory_hostname]) }}"
   delegate_to: "{{ item }}"
 
 - name: Get the private key
@@ -163,6 +180,7 @@
 
 - name: add wg0 to internal zone
   become: yes
+  when: ansible_facts['os_family'] == "Debian" and inventory_hostname != "localhost"
   tags: [ firewall ]
   ansible.posix.firewalld:
     zone: internal
@@ -173,7 +191,7 @@
 
 - name: set target ACCEPT for internal to allow to act as router and set outbound to the public zone
   become: yes
-  when: '"_wireguard" in group_names'
+  when: '"_wireguard" in group_names or ("work" in group_names and inventory_hostname != "localhost")'
   ansible.posix.firewalld:
     zone: internal
     state: present
@@ -181,7 +199,7 @@
     target: ACCEPT
 
 - name: allow wg0 postrouting to {{ ansible_default_ipv4.interface }} to act as router
-  when: '"_wireguard" in group_names'
+  when: '"_wireguard" in group_names or ("work" in group_names and inventory_hostname != "localhost")'
   become: yes
   shell:
     cmd: |
@@ -193,6 +211,7 @@
 - name: add {{ ansible_default_ipv4.interface }} to public zone
   become: yes
   tags: [ firewall ]
+  when: inventory_hostname != "localhost"
   ansible.posix.firewalld:
     zone: public
     interface: "{{ ansible_default_ipv4.interface }}"
@@ -207,7 +226,7 @@
     permanent: yes
     state: enabled
     zone: public
-    service: wireguard
+    port: 51820/udp
     immediate: yes
 
 - name: enable masquerade for public

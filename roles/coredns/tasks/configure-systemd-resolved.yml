@@ -1,0 +1,27 @@
+---
+- name: Copy nameserver for systemd-resolved
+  become: yes
+  copy:
+    force: yes
+    mode: 0644
+    dest: /etc/systemd/resolved.conf
+    content: |
+      [Resolve]
+      DNSStubListener=no
+      DNS=127.0.0.1 9.9.9.9 1.1.1.1
+      Domains=~.
+
+- name: Make sure systemd-resolved is restarted
+  become: yes
+  ansible.builtin.systemd:
+    state: restarted
+    name: systemd-resolved
+    enabled: yes
+
+- name: Create symbolic link 
+  become: yes
+  file:
+    force: yes
+    src: /run/systemd/resolve/stub-resolv.conf
+    dest: /etc/resolv.conf
+    state: link

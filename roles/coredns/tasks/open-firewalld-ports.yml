@@ -1,0 +1,29 @@
+- name: firewalld allow coredns udp
+  become: yes
+  tags: [ firewall ]
+  ansible.posix.firewalld:
+    permanent: yes
+    state: enabled
+    zone: public
+    port: 53/udp
+    immediate: yes
+
+- name: firewalld allow coredns tcp
+  become: yes
+  tags: [ firewall ]
+  ansible.posix.firewalld:
+    permanent: yes
+    state: enabled
+    zone: public
+    port: 53/tcp
+    immediate: yes
+
+- name: firewalld allow coredns metrics tcp ports
+  become: yes
+  tags: [ firewall ]
+  ansible.posix.firewalld:
+    permanent: yes
+    state: enabled
+    zone: internal
+    port: 9153/tcp
+    immediate: yes

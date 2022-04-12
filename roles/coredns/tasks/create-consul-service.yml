@@ -1,0 +1,32 @@
+---
+- name: create coredns service for consul
+  become: yes
+  ignore_errors: true
+  copy:
+    force: yes
+    owner: consul
+    group: consul
+    dest: /etc/consul.d/coredns.json
+    content: |
+      {
+        "service":
+          {
+            "id": "coredns",
+            "name": "coredns",
+            "port": 9153,
+            "address":"",
+            "checks": [
+              {
+                "id": "coredns-health",
+                "name": "coredns health check",
+                "http": "http://localhost:8080/health",
+                "method": "GET",
+                "interval": "30s"
+              }
+            ]
+          }
+      }
+
+- name: reload consul
+  ignore_errors: true
+  command: consul reload

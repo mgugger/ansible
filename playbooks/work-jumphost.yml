@@ -1,0 +1,11 @@
+- name: configure wireguard peers
+  hosts: work
+  roles:
+  - role: wireguard
+    tags: [ wireguard ]
+  - role: coredns
+    when: inventory_hostname != "localhost"
+    tags: [ coredns ]
+  - role: unattended-upgrades
+    when: inventory_hostname != "localhost"
+    tags: [ unattended-upgrades ]

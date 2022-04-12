@@ -1,0 +1,5 @@
+---
+- name: Install coredns
+  command: yay -S coredns-bin --noconfirm
+  args:
+    warn: no

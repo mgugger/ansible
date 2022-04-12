@@ -1,0 +1,13 @@
+work:
+  hosts:
+    vm-wireguard:
+      ansible_host: 192.168.9.0 #mdgcorp.switzerlandnorth.cloudapp.azure.com
+      tags:
+        wireguard_ip: 192.168.9.0/32
+        wireguard_add_remote_cidrs: false
+    localhost:
+      ansible_host: localhost
+      ansible_connection: local
+      tags:
+        wireguard_ip: "192.168.9.1"
+        wireguard_add_remote_cidrs: true

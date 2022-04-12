@@ -1,6 +1,0 @@
----
-- name: login with arc service principal
-  command: az login --service-principal --username {{ arc_sp_id }} --password {{ arc_sp_secret }} --tenant {{ azure_tenant_id }}
-
-- name: az connectedk8s
-  command: az connectedk8s connect --name {{ inventory_hostname }} --resource-group tf-arc-kubernetes --location northeurope --subscription {{ azure_subscription_id }} --custom-locations-oid {{ arc_sp_oid }}

@@ -1,9 +1,6 @@
 ---
-- name: Install coredns
+- include: install-coredns-on-archlinux.yml
   when: ansible_facts['os_family'] == "Archlinux"
-  command: yay -S coredns-bin --noconfirm
-  args:
-    warn: no
 
 - include: install-coredns-on-ubuntu.yml
   when: ansible_facts['os_family'] == "Debian"
@@ -16,18 +13,18 @@
     path: /etc/coredns/zones
     state: directory
 
-- name: set custom zone file for gugger.cloud
+- name: set custom zone file for {{ zone_name }}
   become: yes
   copy:
     mode: 0644
     owner: coredns
     group: coredns
     force: yes
-    dest: /etc/coredns/zones/gugger.cloud.zone
+    dest: /etc/coredns/zones/{{ zone_name }}.zone
     content: |
-      $ORIGIN gugger.cloud.
+      $ORIGIN {{ zone_name }}.
       $TTL 86400
-      @	IN	SOA	ns1.gugger.cloud.	hostmaster.gugger.cloud. (
+      @	IN	SOA	ns1.{{ zone_name }}.	hostmaster.{{ zone_name }}. (
           2021052301 ; serial
           21600      ; refresh after 6 hours
           3600       ; retry after 1 hour
@@ -35,13 +32,20 @@
           86400 )    ; minimum TTL of 1 day
       ;
       ;
-        IN	NS	ns1.gugger.cloud.
-        IN	NS	ns2.gugger.cloud.
-      ns1	IN	A	20.199.182.92
-      ns2	IN	A	20.199.182.92
+      {{ zone_name }}.  IN	NS	ns1.{{ zone_name }}.
+      {{ zone_name }}.  IN	NS	ns2.{{ zone_name }}.
+      ns1	IN	A	{{ public_ip }}
+      ns2	IN	A	{{ public_ip }}
 
-      manuel IN A 20.199.182.92
-      www    IN A 20.199.182.92
+      manuel IN A {{ public_ip }}
+      www    IN A {{ public_ip }}
+
+      ; protect this domain from spoofing and disable email
+      {{ zone_name }}.  IN  TXT "v=spf1 -all"
+      _domainkey  IN  TXT "v=DKIM1; p="
+      {{ zone_name }}.  IN  MX "."
+
+
 
 - name: set custom zone file for .k8s
   become: yes
@@ -88,8 +92,8 @@
         cache 3600
       }
 
-      gugger.cloud. {
-        file /etc/coredns/zones/gugger.cloud.zone
+      {{ zone_name }}. {
+        file /etc/coredns/zones/{{ zone_name }}.zone
         prometheus 0.0.0.0:9153
         log
       }
@@ -134,35 +138,7 @@
         forward . 168.63.129.16
       }
 
-- name: firewalld allow coredns udp
-  become: yes
-  tags: [ firewall ]
-  ansible.posix.firewalld:
-    permanent: yes
-    state: enabled
-    zone: public
-    port: 53/udp
-    immediate: yes
-
-- name: firewalld allow coredns tcp
-  become: yes
-  tags: [ firewall ]
-  ansible.posix.firewalld:
-    permanent: yes
-    state: enabled
-    zone: public
-    port: 53/tcp
-    immediate: yes
-
-- name: firewalld allow coredns metrics tcp ports
-  become: yes
-  tags: [ firewall ]
-  ansible.posix.firewalld:
-    permanent: yes
-    state: enabled
-    zone: internal
-    port: 9153/tcp
-    immediate: yes
+- include: open-firewalld-ports.yml
 
 - name: set coredns systemd timer service
   become: yes
@@ -210,60 +186,6 @@
     name: coredns.timer
     enabled: yes
 
-- name: Copy nameserver for systemd-resolved
-  become: yes
-  copy:
-    force: yes
-    mode: 0644
-    dest: /etc/systemd/resolved.conf
-    content: |
-      [Resolve]
-      DNSStubListener=no
-      DNS=127.0.0.1 9.9.9.9 1.1.1.1
-      Domains=~.
+- include: configure-systemd-resolved.yml
 
-- name: Make sure systemd-resolved is restarted
-  become: yes
-  ansible.builtin.systemd:
-    state: restarted
-    name: systemd-resolved
-    enabled: yes
-
-- name: Create symbolic link 
-  become: yes
-  file:
-    force: yes
-    src: /run/systemd/resolve/stub-resolv.conf
-    dest: /etc/resolv.conf
-    state: link
-
-- name: create coredns service for consul
-  become: yes
-  copy:
-    force: yes
-    owner: consul
-    group: consul
-    dest: /etc/consul.d/coredns.json
-    content: |
-      {
-        "service":
-          {
-            "id": "coredns",
-            "name": "coredns",
-            "port": 9153,
-            "address":"",
-            "checks": [
-              {
-                "id": "coredns-health",
-                "name": "coredns health check",
-                "http": "http://localhost:8080/health",
-                "method": "GET",
-                "interval": "30s"
-              }
-            ]
-          }
-      }
-
-- name: reload consul
-  ignore_errors: true
-  command: consul reload
+- include: create-consul-service.yml
